@@ -6,20 +6,4 @@ set -e
 
 cd "$(dirname "$0")"
 
-PYTHON=python3
-command -v python3 >/dev/null 2>&1 || PYTHON=python
-
-if [ ! -d .venv ]; then
-    echo "[run.sh] .venv 없음 -- 새로 생성합니다"
-    "$PYTHON" -m venv .venv
-fi
-
-if [ -f .venv/bin/activate ]; then
-    source .venv/bin/activate
-elif [ -f .venv/Scripts/activate ]; then
-    source .venv/Scripts/activate
-fi
-
-pip install -q -r requirements.txt
-
-exec python main.py
+exec python3 -u main.py

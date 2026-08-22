@@ -21,8 +21,7 @@
 # 최초 실행은 반드시 False로 두고 디버그 뷰(웹 패널)에서 BEV/차선 인식이 맞는지 확인한 뒤에만
 # True로 바꾸세요. (여러 팀원 버전에서 이 순서를 지키지 않고 True로 커밋된 채 실행되는 사고가
 # 반복 확인되어, 여기서는 문서화된 의도대로 기본값을 False로 되돌려놨습니다.)
-DRIVE_ENABLED = False
-
+DRIVE_ENABLED = True
 TARGET_FPS = 15.0
 PRINT_INTERVAL = 1.0
 
