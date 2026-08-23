@@ -3,27 +3,28 @@
 이 파일 하나가 전체 서브시스템(하드웨어 API / 차선+코너 / 장애물회피 / 신호등 / 디버그뷰)을
 조립합니다. run.sh가 이 파일을 실행하면 end2end로 주행합니다.
 
-각 서브시스템은 독립된 파일로 분리돼 있습니다 -- 예를 들어 장애물 회피 알고리즘만 바꾸고
-싶다면 obstacle_avoidance.py만 건드리면 되고, 차선 인식 알고리즘만 바꾸고 싶다면 lane_tracing.py만 건드리면
-됩니다. 단, 코너모드 상태(keeper.corner_active)가 장애물회피 쪽 조향 억제에도 쓰이는 것처럼
-서브시스템 사이에 넘어가는 값들이 있으니, 각 모듈 상단 docstring을 참고하세요.
+각 서브시스템은 lane/, obstacle/, traffic_light/, config/ 폴더 아래 독립된 버전 파일로
+분리돼 있고, 어떤 버전 조합을 쓸지는 versions.py 한 곳에서 고릅니다. 단, 코너모드 상태
+(keeper.corner_active)가 장애물회피 쪽 조향 억제에도 쓰이는 것처럼 서브시스템 사이에
+넘어가는 값들이 있으니, 각 모듈 상단 docstring을 참고하세요.
 
 안전 관련 설계는 config.py DRIVE_ENABLED 설명, car_api.py 파일 상단 설명을 먼저 읽어보세요.
 """
 import time
 
+# 반드시 다른 것보다 먼저 import -- 선택된 config 버전을 sys.modules["config"]에 등록해서,
+# car_api/debug_view가 기존처럼 "import config"만으로 그 버전 상수를 그대로 쓸 수 있게 합니다.
+import versions
+
 import car_api
 import config
 import debug_view
-import lane_keeper
-import obstacle_avoidance
-import traffic_light
 
 
 def main():
     print("PhysiCar 자율주행: Stanley 차선추종 + 코너 폴백 + LiDAR 장애물회피 + 신호등")
-    keeper = lane_keeper.LaneKeeper()
-    avoider = obstacle_avoidance.ObstacleAvoider()
+    keeper = versions.lane.LaneKeeper()
+    avoider = versions.obstacle.ObstacleAvoider()
     frame_n = 0
 
     debug_view.serve()
@@ -41,7 +42,9 @@ def main():
 
     try:
         if config.ENABLE_TRAFFIC_LIGHT_WAIT:
-            traffic_light.wait_for_green_and_return_to_driving_pose()
+            versions.traffic_light.wait_for_green_and_return_to_driving_pose()
+
+        debug_view.mark_start()   # 신호등 대기 시간은 빼고, 실제 주행부터 기록측정 시작
 
         while True:
             t0 = time.time()
@@ -85,7 +88,7 @@ def main():
 
             proc_time = time.time() - t0
             if frame_n % 10 == 0:
-                print(f"steer {steer:+.1f}  speed {speed:.2f}  {status}  "
+                print(f"{debug_view.elapsed_str()}  steer {steer:+.1f}  speed {speed:.2f}  {status}  "
                       f"({1 / max(proc_time, 1e-6):.1f}Hz)")
 
             time.sleep(max(0.0, 1 / config.TARGET_FPS - proc_time))
@@ -96,6 +99,7 @@ def main():
         # car_api.stop_vehicle()은 자체적으로 모든 예외를 삼키므로 여기서 또 죽지 않습니다.
         car_api.stop_vehicle()
         debug_view.stop_view()
+        print(f"기록측정 종료 -- 총 {debug_view.elapsed_str()}")
         print("stopped")
 
 

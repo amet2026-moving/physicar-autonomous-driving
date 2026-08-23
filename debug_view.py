@@ -7,11 +7,12 @@ DRIVE_ENABLED=True로 바꾸기 전에 반드시 이 뷰로 BEV/차선 인식이
 import os
 import socket
 import threading
+import time
 
 import cv2
 import numpy as np
 
-import lane_tracing
+import versions
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 WEBUI_DIR = os.path.join(_THIS_DIR, "..", "assets", "line-tracing")
@@ -19,6 +20,22 @@ WEBUI_DIR = os.path.join(_THIS_DIR, "..", "assets", "line-tracing")
 _frame = [b""]
 _status = ["starting"]
 _server = [None]
+_start_time = [None]   # 기록측정 시작 시각 (mark_start() 호출 전엔 None)
+
+
+def mark_start():
+    """기록측정 시작. 신호등 대기가 끝나고 실제 주행 루프에 들어가기 직전에 호출하세요 --
+    신호등 대기 시간은 랩타임에 안 들어가야 하므로 대기 전이 아니라 대기 후에 부릅니다."""
+    _start_time[0] = time.time()
+    print("기록측정 시작")
+
+
+def elapsed_str():
+    """기록측정 시작 이후 경과 시간. mark_start()를 아직 안 불렀으면 '--:--'."""
+    if _start_time[0] is None:
+        return "--:--"
+    s = time.time() - _start_time[0]
+    return f"{int(s) // 60:02d}:{s % 60:04.1f}"
 
 
 def stop_view():
@@ -56,7 +73,7 @@ def _draw_fit(img, fit, color, thickness=3):
     h, w = img.shape[:2]
     pts = []
     for y in np.linspace(0, h - 1, 80):
-        x = lane_tracing.fit_x(fit, y)
+        x = versions.lane.fit_x(fit, y)
         if x is not None and -50 <= x <= w + 50:
             pts.append((int(x), int(y)))
     if len(pts) >= 2:
@@ -64,7 +81,7 @@ def _draw_fit(img, fit, color, thickness=3):
 
 
 def draw_debug_panel(img, keeper):
-    """카메라 / BEV / 흰색마스크 / 정보 4분할 디버그 패널. keeper는 lane_keeper.LaneKeeper."""
+    """카메라 / BEV / 흰색마스크 / 정보 4분할 디버그 패널. keeper는 versions.lane.LaneKeeper."""
     d = keeper.last_debug
     if not d:
         return img
