@@ -18,7 +18,8 @@ import importlib
 import sys
 
 """0823 다현
-설명: Sangheon/test_v8 + sungchan/auto4.py 버전 통합 및 자잘한 수정
+설명: 재모
+modi_test_v5/v6, Sangheon test_v7/v8, 성찬 auto3/auto4 버전 통합 및 자잘한 수정
 점수: 63초
 충돌: 0회
 이탈: 1회
