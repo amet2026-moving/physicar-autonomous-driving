@@ -51,7 +51,37 @@ TRAFFIC_VERSION = "v1_basic"
 #OBSTACLE_VERSION = "v3_sumin_test"
 #TRAFFIC_VERSION = "v1_basic"
 
+"""0823 (장애물회피 담당)
+설명: obstacle_steer_bias(왼쪽/오른쪽 이진 판단)을 라이다 클러스터링+틈찾기 기반
+obstacle_avoid_target()으로 교체(obstacle/v2_gap_cluster.py). 로컬에서
+autonomous_drive_v19~v22_candidate.py로 실차 반복 검증된 로직 그대로 이식(콘 대칭 상황
+"왔다갔다" 구조적 해결, lidar 각도 부호 반전 수정, curve_direction 오신뢰 방지, 가장자리
+틈 목표각 보정). 아직 실차 미검증 -- 테스트 후 이 설명 아래 점수/충돌/이탈 채우고 위 블록
+주석 처리할 것. MIN_PASSABLE_GAP_DEG/GAP_STEER_GAIN/CURVE_ALIGN_SLACK_DEG는 미검증 초기값이라
+아슬아슬한 회피가 보이면 이 값부터 의심할 것 (obstacle/v2_gap_cluster.py 상단 참고).
+점수: 초
+충돌: 회
+이탈: 회
+"""
+# CONFIG_VERSION = "v1_basic"
+# LANE_VERSION = "v1_basic"
+# OBSTACLE_VERSION = "v2_gap_cluster"
+# TRAFFIC_VERSION = "v1_basic"
 
+"""0824 (장애물회피, 다른 실험 폴더에서 이식)
+설명: 인공 포텐셜필드(artificial potential field) 방식 -- 라이다 포인트 하나하나를 반발력
+벡터로 합산해서 조향 보정치를 냄(이산적 틈 선택 없음). obstacle/v1_chan.py 상단 docstring에
+근거/한계 상세 기재. *** 실차 미검증, 특히 각도 부호(lidar +=좌측 반전 여부)가
+obstacle/v2_gap_cluster.py와 반대로 적혀있어 가장 먼저 확인 필요 ***. main.py의
+line_steer 반대부호 blend(EMERGENCY_DIST 등)는 인터페이스 제약으로 미반영.
+점수: 초
+충돌: 회
+이탈: 회
+"""
+# CONFIG_VERSION = "v1_basic"
+# LANE_VERSION = "v1_basic"
+# OBSTACLE_VERSION = "v1_chan"
+# TRAFFIC_VERSION = "v1_basic"
 
 
 # 이 아래로는 작성하지 말하주세요.
