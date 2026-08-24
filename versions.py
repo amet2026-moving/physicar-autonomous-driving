@@ -30,25 +30,26 @@ modi_test_v5/v6, Sangheon test_v7/v8, 성찬 auto3/auto4 버전 통합 및 자�
 #TRAFFIC_VERSION = "v1_basic"
  
 """0824 윤지
-설명: test  왼쪽 중심  회피
+설명: 새 알고리즘 test
 점수: 초
 충돌: 회
 이탈: 회
 """
 CONFIG_VERSION = "v1_basic"
-LANE_VERSION = "v2_ynz_1line"
-OBSTACLE_VERSION = "v2_ynz_1linecomb"
+LANE_VERSION = "v1_basic"
+OBSTACLE_VERSION = "v1_basic"
 TRAFFIC_VERSION = "v1_basic"
+
 """0824 수민
 설명: 3_1 장애물 회피 개선
 점수: 초
 충돌: 회
 이탈: 회
 """
-# CONFIG_VERSION = "v1_basic"
-# LANE_VERSION = "v1_basic"
-# OBSTACLE_VERSION = "v3_sumin_test"
-# TRAFFIC_VERSION = "v1_basic"
+#CONFIG_VERSION = "v1_basic"
+#LANE_VERSION = "v1_basic"
+#OBSTACLE_VERSION = "v3_sumin_test"
+#TRAFFIC_VERSION = "v1_basic"
 
 
 
