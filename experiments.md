@@ -19,7 +19,7 @@ run_id만 남겨서 결과와 전체 로그를 서로 연결할 수 있게 한�
 ## 구현 진행 체크리스트 (다 채우면 이 섹션은 지울 것)
 
 - [x] `sensors/camera.py` -- BEV/ROI + 흰선 + 노란선 + 신호등 인식 (draw_debug 포함, self-test: `python -m sensors.camera`)
-- [ ] `sensors/lidar.py` -- 스캔 수신 + 클러스터링 + 콘 형상 분류
+- [x] `sensors/lidar.py` -- 스캔 수신(rclpy) + 클러스터링 + 콘 형상 분류 (self-test: `python -m sensors.lidar`)
 - [ ] `sensors/fusion.py` -- 차선기준 장애물 좌/우 판정
 - [ ] `decision/*_judge.py` -- 신호등/차선/장애물 상태 판정
 - [ ] `control/lane_follow.py` -- Stanley 조향 + 속도계획

@@ -447,7 +447,9 @@ def detect_yellow_path(bev_frame):
 
 
 # ============================================================
+
 # 흰선(B) + 노란선(C) 통합 진입점
+
 # ============================================================
 
 def detect_lane_lines(bev_frame) -> LaneObservation:
@@ -562,7 +564,6 @@ def traffic_candidate_score(area_ratio, fill, circularity, dark_ratio):
     램프 색상 자체는 조명에 흔들리지만 '몸체가 어둡다'는 훨씬 안정적인 신호라서."""
     def norm(v, lo, hi):
         return float(np.clip((v - lo) / max(hi - lo, 1e-6), 0.0, 1.0))
-
     area_score = norm(area_ratio, cfg.TRAFFIC_MIN_BLOB_AREA_RATIO, 0.0025)
     fill_score = norm(fill, cfg.TRAFFIC_MIN_BBOX_FILL, 0.85)
     circularity_score = norm(circularity, cfg.TRAFFIC_MIN_CIRCULARITY, 0.90)
