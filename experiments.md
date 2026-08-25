@@ -20,8 +20,10 @@ run_id만 남겨서 결과와 전체 로그를 서로 연결할 수 있게 한�
 
 - [x] `sensors/camera.py` -- BEV/ROI + 흰선 + 노란선 + 신호등 인식 (draw_debug 포함, self-test: `python -m sensors.camera`)
 - [x] `sensors/lidar.py` -- 스캔 수신(rclpy) + 클러스터링 + 콘 형상 분류 (self-test: `python -m sensors.lidar`)
-- [ ] `sensors/fusion.py` -- 차선기준 장애물 좌/우 판정
-- [ ] `decision/*_judge.py` -- 신호등/차선/장애물 상태 판정
+- [x] `sensors/fusion.py` -- 차선기준(노란점선 우선, 없으면 흰선중심선) 장애물 좌/우 판정 (self-test: `python -m sensors.fusion`)
+- [x] `decision/lane_judge.py` -- LaneState 판정 (곡률 기반 코너 히스테리시스, T_T.py 원본 조향각 기준 대신 단순화)
+- [x] `decision/obstacle_judge.py` -- ObstacleState 판정 (근접거리 게이트)
+- [ ] `decision/traffic_judge.py` -- 신호등 상태 판정 + 출발 게이트 (light_1.py 포팅 필요, 아직 안 함)
 - [ ] `control/lane_follow.py` -- Stanley 조향 + 속도계획
 - [ ] `control/obstacle_avoid.py` -- 회피 컨트롤러
 - [ ] `control/recovery.py` -- 후진/재확인 컨트롤러

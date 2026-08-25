@@ -69,7 +69,9 @@ def main():
             fusion_result = fusion.classify_obstacle_side(lane_obs, clusters)  # 차선기준 좌/우 장애물 판정
 
             # 이번 프레임의 관측 결과를 각각의 상태(Enum)로 판정
-            lane_state = lane_judge.judge_lane_state(lane_obs, mode == VehicleMode.OBSTACLE_AVOID)
+            # judge_lane_state()는 코너 히스테리시스에 쓸 "직전 프레임이 코너였는지"를
+            # 자기 내부에 기억해두므로(decision/lane_judge.py 참고) 여기서 넘길 필요 없음.
+            lane_state = lane_judge.judge_lane_state(lane_obs)
             obstacle_state = obstacle_judge.judge_obstacle_state(fusion_result)
 
             avoid_status = "DONE"   # 회피 모드가 아닐 때의 기본값 (다음 모드 결정에 쓰임)

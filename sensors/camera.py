@@ -40,6 +40,8 @@ class LaneObservation:
     yellow_path: list = field(default_factory=list)    # 노란점을 연결한 경로 [(x,y), ...] (BEV px)
     # ^ yellow_path는 코너/직선 구분 없이 노란선이 보이면 항상 채워짐. "이걸 코너로
     #   볼지"는 여기서 정하지 않는다 -- decision/lane_judge.is_corner()의 몫.
+    bev_w: int = 0                                       # BEV 프레임 폭 (px) -- sensors/fusion.py가 좌표 정규화에 씀
+    bev_h: int = 0                                       # BEV 프레임 높이 (px)
 
 
 @dataclass
@@ -461,6 +463,7 @@ def detect_lane_lines(bev_frame) -> LaneObservation:
     yellow_mask, yellow_points, yellow_path = detect_yellow_path(bev_frame)
     obs.yellow_points = yellow_points
     obs.yellow_path = yellow_path
+    obs.bev_h, obs.bev_w = bev_frame.shape[:2]
 
     _last_debug["white_mask"] = white_mask
     _last_debug["yellow_mask"] = yellow_mask

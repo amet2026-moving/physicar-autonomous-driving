@@ -1,16 +1,28 @@
 # sensors/fusion.py의 FusionResult를 ObstacleState로 판정하는 모듈.
 #
-# TODO: fusion_result.distance_m을 근접거리 임계값(near_range_m, 필요하면
-# config/control_params.py에 상수 추가)과 비교하고, fusion_result.side
-# ("LEFT"/"RIGHT"/"NONE")를 ObstacleState로 매핑할 것.
+# fusion.classify_obstacle_side()는 거리와 무관하게 콘 형상+차선기준 좌우만 맞으면
+# LEFT/RIGHT를 돌려준다. 여기서는 "실제로 반응할 만큼 가까운가"(OBSTACLE_REACT_RANGE_M)
+# 를 추가로 걸러서, 멀리 있는 콘 때문에 미리 회피모드로 넘어가지 않게 한다.
+from config import decision_params as cfg
 from utils.states import ObstacleState
 
 
 def is_obstacle_near(fusion_result, near_range_m: float) -> bool:
-    """장애물이 near_range_m(m) 이내로 가까이 있는지 판단. TODO."""
-    raise NotImplementedError
+    """장애물이 near_range_m(m) 이내로 가까이 있는지 판단."""
+    return (
+        fusion_result.side != "NONE"
+        and fusion_result.distance_m is not None
+        and fusion_result.distance_m <= near_range_m
+    )
 
 
 def judge_obstacle_state(fusion_result) -> ObstacleState:
-    """fusion_result를 ObstacleState(CLEAR/LEFT/RIGHT)로 변환. TODO."""
-    raise NotImplementedError
+    """fusion_result를 ObstacleState(CLEAR/LEFT/RIGHT)로 변환."""
+    if not is_obstacle_near(fusion_result, cfg.OBSTACLE_REACT_RANGE_M):
+        return ObstacleState.CLEAR
+
+    if fusion_result.side == "LEFT":
+        return ObstacleState.LEFT
+    if fusion_result.side == "RIGHT":
+        return ObstacleState.RIGHT
+    return ObstacleState.CLEAR
