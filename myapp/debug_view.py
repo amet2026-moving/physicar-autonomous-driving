@@ -12,7 +12,16 @@ import threading
 import cv2
 import numpy as np
 
-WEBUI_DIR = "examples/assets/line-tracing"   # PhysiCar 공식 webui.html이 있는 경로
+# PhysiCar 공식 webui.html 후보 경로들 -- 프로젝트 폴더 기준 상대경로(로컬 복사본을
+# 쓰는 경우)를 먼저 보고, 없으면 실제 로봇에 설치된 PhysiCar SDK 절대경로를 본다.
+# 실행 위치(cwd)에 의존하지 않도록 절대경로 후보를 추가함 -- 상대경로만 있으면
+# physicar-autonomous-driving/ 밖(예: ~/physicar_ws/examples/...)에 있는 실제 파일을
+# 못 찾는다.
+WEBUI_DIR_CANDIDATES = [
+    "assets/line-tracing",
+    "examples/assets/line-tracing",
+    os.path.expanduser("~/physicar_ws/examples/assets/line-tracing"),
+]
 
 _frame = [b""]           # 웹으로 내보낼 최신 프레임 (JPEG 인코딩된 바이트)
 _status = ["starting"]    # 웹으로 내보낼 최신 상태 텍스트
@@ -72,10 +81,17 @@ def serve():
     from flask import Flask, Response, jsonify
 
     app = Flask(__name__)
-    webui_path = os.path.join(WEBUI_DIR, "webui.html")
 
-    if not os.path.isfile(webui_path):
-        raise FileNotFoundError(f"webui.html not found: {webui_path}")
+    webui_path = None
+    for candidate_dir in WEBUI_DIR_CANDIDATES:
+        candidate_path = os.path.join(candidate_dir, "webui.html")
+        if os.path.isfile(candidate_path):
+            webui_path = candidate_path
+            break
+
+    if webui_path is None:
+        tried = "\n".join(f"  - {os.path.join(d, 'webui.html')}" for d in WEBUI_DIR_CANDIDATES)
+        raise FileNotFoundError(f"webui.html not found. Tried:\n{tried}")
 
     page = open(webui_path, "r", encoding="utf-8").read()   # 페이지 내용은 최초 1회만 읽어서 캐싱
 

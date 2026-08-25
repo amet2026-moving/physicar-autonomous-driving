@@ -7,7 +7,7 @@
 # 프레임당 파이프라인:
 #   sensors.camera / sensors.lidar  ->  sensors.fusion
 #     -> decision.*_judge            ->  control.modes.decide_mode
-#     -> control.lane_follow / obstacle_avoid / recovery (현재 모드에 맞는 것)
+#     -> control.lane_follow / obstacle_avoid (현재 모드에 맞는 것 -- recovery 없음)
 #     -> hardware.car_api.drive()
 #
 # 지금은 아래 sensors/decision/control 호출들이 전부 NotImplementedError를 던짐 --
@@ -22,7 +22,6 @@ from sensors import camera, lidar, fusion
 from decision import traffic_judge, lane_judge, obstacle_judge
 from control import modes, lane_follow
 from control.obstacle_avoid import ObstacleAvoidController
-from control.recovery import RecoveryController
 from utils import logger
 from utils.states import VehicleMode, TrafficLightState
 
@@ -45,7 +44,6 @@ def main():
     print("=" * 72)
 
     avoid_ctrl = ObstacleAvoidController()   # 장애물 회피 상태를 프레임간 유지하는 컨트롤러 인스턴스
-    recovery_ctrl = RecoveryController()      # 후진 리커버리 상태를 프레임간 유지하는 컨트롤러 인스턴스
 
     mode = VehicleMode.LANE_FOLLOW   # 최초 진입 모드
     current_speed = 0.0              # 현재 속도 (m/s) -- 다음 프레임 가감속 램프 계산에 쓰임
@@ -76,9 +74,9 @@ def main():
 
             avoid_status = "DONE"   # 회피 모드가 아닐 때의 기본값 (다음 모드 결정에 쓰임)
             if mode == VehicleMode.OBSTACLE_AVOID:
-                steer, current_speed, avoid_status = avoid_ctrl.step(obstacle_state, lane_obs)
-            elif mode == VehicleMode.RECOVERY:
-                steer, current_speed, _recovery_status = recovery_ctrl.step(fusion_result)
+                steer, current_speed, avoid_status = avoid_ctrl.step(
+                    obstacle_state, fusion_result, clusters, lane_obs,
+                )
             else:
                 steer, current_speed = lane_follow.compute(lane_obs, lane_state, current_speed)
 

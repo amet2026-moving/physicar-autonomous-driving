@@ -29,7 +29,8 @@ class ObstacleState(Enum):
 
 
 class VehicleMode(Enum):
-    """최상위 제어 모드. 전이 규칙은 TODO -- control/modes.py 참고."""
+    """최상위 제어 모드. 전이 규칙은 control/modes.py 참고.
+    RECOVERY(후진 재탐색)는 없음 -- 정지/후진보다 부딪히는 게 낫다는 팀 결정에 따라
+    control/obstacle_avoid.py가 정지 없이 항상 회피 조향으로 반응하기 때문."""
     LANE_FOLLOW = "LANE_FOLLOW"          # 기본 주행 (직선/코너 모두 포함, 내부에서 알고리즘 분기)
     OBSTACLE_AVOID = "OBSTACLE_AVOID"     # 장애물 회피 중
-    RECOVERY = "RECOVERY"                  # 막힘 -> 후진 후 재탐색 중

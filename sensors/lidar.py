@@ -4,8 +4,9 @@
 # 형태만 판정하고(classify_cone_candidates), 그 콘을 여러 프레임에 걸쳐 추적/래칭하는
 # 것은 여기 없음 -- sensors/fusion.py가 매 프레임 독립적으로 "가장 가까운 유효
 # 클러스터"를 고르고, 그걸 프레임 간에 어떻게 다룰지(같은 물체로 볼지, 회피 방향을
-# 얼마나 유지할지)는 control/obstacle_avoid.py, control/recovery.py가 각자 컨트롤러
-# 상태로 들고 있는다.
+# 얼마나 유지할지)는 control/obstacle_avoid.py가 컨트롤러 상태로 들고 있는다
+# (RECOVERY 모드/control/recovery.py는 없음 -- 정지/후진보다 부딪히는 게 낫다는 팀
+# 결정에 따라 obstacle_avoid.py가 항상 회피 조향으로만 반응한다).
 #
 # 원본: T_T.py의 LiDAR 클러스터 로거 + 콘 형상 판정 로직을 그대로 포팅. 튜닝 상수는
 # config/lidar_params.py에 있음.

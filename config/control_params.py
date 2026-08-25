@@ -1,5 +1,5 @@
 # 조향/속도 결정 튜닝값: Stanley 게인, 코너 컨트롤러, 장애물 회피 오프셋,
-# 충돌쉴드 속도상한, 후진 리커버리.
+# 원시 충돌 감지 거리. (후진 리커버리 없음 -- utils/states.py, control/obstacle_avoid.py 참고)
 #
 # 실차 주행 후 다시 조정하게 될 파일. "이게 흰선/노란선/콘이 맞는가" 같은 센싱
 # 임계값은 camera_params.py / lidar_params.py에 있음 -- 랩타임이 안 나온다고 색상
@@ -159,41 +159,10 @@ CORNER_EMERGENCY_STOP_X_M = 0.42      # 코너 중 긴급정지 전방거리 기
 CORNER_EMERGENCY_STOP_ABS_Y_M = 0.30  # 코너 중 긴급정지 횡방향거리 기준 (m)
 
 # ============================================================
-# 원시 충돌 쉴드 (미확정 물체라도 정면에 있으면 속도로 반응하는 안전망)
+# 원시 충돌 감지 (콘으로 확정되지 않은 물체도 전방 근접이면 회피방향을 잡는 보강채널)
 # ============================================================
-RAW_SHIELD_HARD_HALF_WIDTH_M = 0.17       # '완전 차단'으로 볼 반폭 (m)
-RAW_SHIELD_SOFT_HALF_WIDTH_M = 0.21       # '주의'로 볼 반폭 (m)
-RAW_SHIELD_BRAKE_X_M = 0.70               # 감속 시작 전방거리 (m)
-RAW_SHIELD_STOP_X_M = 0.34                # 정지 전방거리 (m)
-RAW_SHIELD_SIDE_PASS_X_M = 0.12           # 옆으로 통과 인정 전방거리 (m)
-RAW_SHIELD_CRAWL_SPEED = 0.20             # 개입 중 서행 속도 (m/s)
-RAW_SHIELD_ESCAPE_CRAWL_SPEED = 0.30      # 탈출 허용 서행 속도 (m/s)
-RAW_SHIELD_ABSOLUTE_STOP_X_M = 0.12       # 절대 정지 전방거리 (m)
-
-# ============================================================
-# 리커버리 (막힘 -> 후진 -> 재확인 -> 재개)
-# ============================================================
-RECOVERY_ENABLED = True   # 후진 리커버리 기능 On/Off
-
-RECOVERY_TRIGGER_X_M = 0.11              # 리커버리 진입 트리거 전방거리 (m)
-RECOVERY_TRIGGER_HALF_WIDTH_M = 0.12     # 리커버리 진입 트리거 반폭 (m)
-RECOVERY_DANGER_CONFIRM_FRAMES = 2       # 위험상황 확정에 필요한 연속 프레임 수 (개)
-RECOVERY_FORCE_X_M = 0.055               # 강제 리커버리 진입 전방거리 (m, 매우 근접 상황)
-RECOVERY_FORCE_HALF_WIDTH_M = 0.07       # 강제 리커버리 진입 반폭 (m)
-
-RECOVERY_BACKUP_SPEED = -0.20                # 후진 속도 (m/s, 음수=후진)
-RECOVERY_BACKUP_TARGET_X_M = 0.90            # 후진으로 확보하려는 목표 전방거리 (m)
-RECOVERY_BACKUP_TRACK_HALF_WIDTH_M = 0.35    # 후진 중 추적할 전방 클러스터 반폭 (m)
-RECOVERY_BACKUP_TRACK_MAX_X_M = 1.30         # 후진 중 추적할 전방 클러스터 최대거리 (m)
-RECOVERY_BACKUP_MIN_SEC = 0.90               # 최소 후진 시간 (초)
-RECOVERY_BACKUP_MAX_SEC = 5.00               # 최대 후진 시간 (초, 타임아웃)
-RECOVERY_BACKUP_CLEAR_FRAMES = 3             # 후진 완료 판정에 필요한 연속 '여유확보' 프레임 수 (개)
-RECOVERY_RECHECK_SEC = 0.25                  # 후진 후 재확인 대기 시간 (초)
-RECOVERY_REARM_SEC = 1.20                    # 재확인 후 새 회피를 다시 허용하기까지 대기 시간 (초)
-
-RECOVERY_STALL_MAX_X_M = 0.70                       # 정체(제자리 후진) 감시 대상 최대 전방거리 (m)
-RECOVERY_STALL_HALF_WIDTH_M = 0.17                  # 정체 감시 반폭 (m)
-RECOVERY_STALL_WINDOW_SEC = 0.90                    # 정체 판정 관찰 시간 창 (초)
-RECOVERY_STALL_MIN_X_PROGRESS_M = 0.05              # 정체 아님으로 볼 최소 전방거리 진전 (m)
-RECOVERY_STALL_MIN_CLEARANCE_PROGRESS_M = 0.035     # 정체 아님으로 볼 최소 여유거리 진전 (m)
-RECOVERY_STALL_MIN_CMD_SPEED = 0.26                 # 정체 판정 대상으로 볼 최소 명령 속도 (m/s)
+# 정지/후진은 팀 결정으로 하지 않음(control/obstacle_avoid.py 참고) -- 그래서 여기엔
+# "정지 거리" 같은 값이 없다. 이 물체가 콘 모양 필터(lidar_params.py)를 통과하든
+# 안 하든, 아래 거리/여유 안에 들어오면 obstacle_avoid.py가 즉시 회피방향을 잡는다.
+RAW_SHIELD_SOFT_HALF_WIDTH_M = 0.21       # '주의'로 볼 중심선 기준 반폭 (m)
+RAW_SHIELD_BRAKE_X_M = 0.70               # 회피방향 즉시 결정을 시작할 전방거리 (m)
