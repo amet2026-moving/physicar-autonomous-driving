@@ -83,7 +83,7 @@ def main():
             avoid_status = "DONE"   # 회피 모드가 아닐 때의 기본값 (다음 모드 결정에 쓰임)
             if mode == VehicleMode.OBSTACLE_AVOID:
                 steer, current_speed, avoid_status = avoid_ctrl.step(
-                    obstacle_state, fusion_result, clusters, lane_obs,
+                    fusion_result, clusters, lane_obs,
                 )
                 # lane_follow의 조향 EMA를 계속 동기화해둔다 -- 안 하면 회피 끝나고
                 # LANE_FOLLOW로 복귀할 때 회피 시작 전의 오래된 값에서부터 다시

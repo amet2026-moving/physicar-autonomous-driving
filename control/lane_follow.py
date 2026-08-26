@@ -99,7 +99,7 @@ def _straight_speed(lane_obs, steer, heading_error):
     (차선 정보 없음) 최소 속도로 서행."""
     if lane_obs.mode == "LOST":
         return cfg.SPEED_MIN
-    if lane_obs.mode in ("LEFT_ONLY", "RIGHT_ONLY"):
+    if lane_obs.mode in ("LEFT_ONLY", "YELLOW_ONLY"):
         return cfg.SPEED_ONE_LINE
     if steer is None or heading_error is None:
         return cfg.SPEED_MIN
@@ -206,7 +206,7 @@ class _LaneFollowController:
             ))
             raw_steer = self.last_corner_steering + delta
 
-            if lane_obs.mode in ("LEFT_ONLY", "RIGHT_ONLY") and abs(self.corner_memory_steering) > 1e-3:
+            if lane_obs.mode in ("LEFT_ONLY", "YELLOW_ONLY") and abs(self.corner_memory_steering) > 1e-3:
                 # 한쪽 차선만 보이는 동안은, 아직 안 끝난 급코너를 조기에 풀지
                 # 않도록 코너 메모리로 최소 크기(floor)를 보장한다.
                 floor_mag = float(np.clip(

@@ -14,9 +14,14 @@
 # 벗어났다'(비율 1.0)고 볼 물리 거리 기준 (m).
 FUSION_LATERAL_HALF_WIDTH_M = 0.6
 
-# cy가 이 값보다 작으면(거의 정중앙) 차선 기준선과 비교할 것도 없이 NONE 처리.
+# cy가 이 값보다 작으면(라이다 정면축상 거의 정중앙) 차선 기준선과 비교할 것도 없이
+# 곧바로 IN_CORRIDOR로 본다 -- 바로 앞을 막고 있는 게 명백하므로.
 FUSION_CY_DEADBAND_M = 0.03
 
-# 장애물 offset과 차선 기준선 offset의 차이가 이 비율보다 작으면 판정을
-# 보류(NONE)한다 -- 애매한 경우 좌우를 억지로 정하지 않음.
-FUSION_SIDE_DEADBAND_RATIO = 0.05
+# 코리도 폭(lane_obs.lane_width_px) 좌우로 추가 확보하는 안전 여유 비율. 차선 인식이
+# 살짝 흔들려도 코리도 경계 바로 안쪽 장애물을 놓치지 않기 위함.
+FUSION_CORRIDOR_MARGIN_RATIO = 0.15
+
+# lane_obs.lane_width_px(코리도 폭 EMA)가 아직 한 번도 추정되지 않았을 때(예: 주행
+# 시작 직후) 쓰는 기본 코리도 폭 -- BEV 프레임 폭 대비 비율. 실차 확인 후 재조정할 것.
+FUSION_DEFAULT_CORRIDOR_WIDTH_RATIO = 0.30

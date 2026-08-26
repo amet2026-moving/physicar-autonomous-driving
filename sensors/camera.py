@@ -25,7 +25,7 @@ from config import camera_params as cfg
 @dataclass
 class LaneObservation:
     """한 프레임의 차선 인식 결과 (흰선 B + 노란선 C 통합)."""
-    mode: str                                          # "BOTH"/"LEFT_ONLY"/"RIGHT_ONLY"/"LOST"
+    mode: str                                          # "BOTH"/"LEFT_ONLY"/"YELLOW_ONLY"/"LOST"
     confidence: float = 0.0                            # 0~1, mode별 신뢰도 (BOTH=1.0, *_ONLY=0.6, LOST=0.0)
     left_fit: np.ndarray | None = None                 # 왼쪽 흰선 다항식 계수 (x=ay^2+by+c), 없으면 None
     right_fit: np.ndarray | None = None                # 오른쪽 흰선 다항식 계수, 없으면 None
@@ -271,47 +271,53 @@ def fit_x(fit, y):
 
 
 class LaneTracker:
-    """흰선 좌/우 피팅 결과를 프레임 간 상태(차선폭 EMA)와 함께 추적.
-    한쪽만 보여도 지난 차선폭 기억으로 반대쪽 중심을 추정한다(LEFT_ONLY/RIGHT_ONLY)."""
+    """왼쪽 흰선 + 노란 점선 사이 코리도를 기본 주행선으로 추적한다(팀 결정: 왼쪽
+    차로 주행, 장애물 시 오른쪽으로 회피). 오른쪽 흰선(right_fit)은 디버그 시각화용
+    으로만 계속 계산하고, 코리도 중심 계산에는 쓰지 않는다 -- 그건 도로 반대쪽 바깥
+    경계일 뿐, 지금 달리는 코리도의 경계가 아니기 때문.
+    한쪽만 보여도 지난 코리도 폭(EMA) 기억으로 반대쪽 경계를 추정한다
+    (LEFT_ONLY/YELLOW_ONLY). 노란선 x좌표는 C 섹션이 만든 yellow_path를
+    _yellow_x_at_row()로 y_near/y_far에서 보간해서 얻는다."""
 
     def __init__(self):
-        self.lane_width_px = None   # 차선폭 EMA (BEV px), 처음엔 미지
+        self.lane_width_px = None   # 코리도 폭 EMA (BEV px, 왼쪽흰선~노란선), 처음엔 미지
 
-    def detect(self, mask) -> LaneObservation:
+    def detect(self, mask, yellow_path=None) -> LaneObservation:
         h, w = mask.shape
         y_near = int(h * cfg.NEAR_Y_RATIO)
         y_far = int(h * cfg.FAR_Y_RATIO)
 
         left_fit, left_count = sliding_window_fit(mask, "left")
-        right_fit, right_count = sliding_window_fit(mask, "right")
+        right_fit, right_count = sliding_window_fit(mask, "right")   # 디버그 시각화 전용
 
-        left_near, right_near = fit_x(left_fit, y_near), fit_x(right_fit, y_near)
-        left_far, right_far = fit_x(left_fit, y_far), fit_x(right_fit, y_far)
+        left_near, left_far = fit_x(left_fit, y_near), fit_x(left_fit, y_far)
+        yellow_near = _yellow_x_at_row(yellow_path, y_near)
+        yellow_far = _yellow_x_at_row(yellow_path, y_far)
 
         both = (
-            left_near is not None and right_near is not None
-            and left_far is not None and right_far is not None
+            left_near is not None and yellow_near is not None
+            and left_far is not None and yellow_far is not None
         )
 
         if both:
-            width_near = right_near - left_near
-            width_far = right_far - left_far
+            width_near = yellow_near - left_near
+            width_far = yellow_far - left_far
             min_w, max_w = w * cfg.LANE_WIDTH_MIN_RATIO, w * cfg.LANE_WIDTH_MAX_RATIO
             geometry_ok = (
                 min_w <= width_near <= max_w and min_w <= width_far <= max_w
-                and left_near < right_near and left_far < right_far
+                and left_near < yellow_near and left_far < yellow_far
             )
             if not geometry_ok:
-                both = False   # 좌우가 뒤바뀌었거나 폭이 비정상이면 둘 다 못 찾은 것으로 취급
+                both = False   # 순서가 뒤바뀌었거나 폭이 비정상이면 둘 다 못 찾은 것으로 취급
 
         if both:
-            observed_width = 0.5 * ((right_near - left_near) + (right_far - left_far))
+            observed_width = 0.5 * ((yellow_near - left_near) + (yellow_far - left_far))
             self.lane_width_px = (
                 observed_width if self.lane_width_px is None
                 else cfg.LANE_WIDTH_ALPHA * observed_width + (1.0 - cfg.LANE_WIDTH_ALPHA) * self.lane_width_px
             )
-            center_near = 0.5 * (left_near + right_near)
-            center_far = 0.5 * (left_far + right_far)
+            center_near = 0.5 * (left_near + yellow_near)
+            center_far = 0.5 * (left_far + yellow_far)
             mode, confidence = "BOTH", 1.0
 
         elif self.lane_width_px is not None and left_near is not None and left_far is not None:
@@ -319,10 +325,10 @@ class LaneTracker:
             center_far = left_far + self.lane_width_px / 2.0
             mode, confidence = "LEFT_ONLY", 0.60
 
-        elif self.lane_width_px is not None and right_near is not None and right_far is not None:
-            center_near = right_near - self.lane_width_px / 2.0
-            center_far = right_far - self.lane_width_px / 2.0
-            mode, confidence = "RIGHT_ONLY", 0.60
+        elif self.lane_width_px is not None and yellow_near is not None and yellow_far is not None:
+            center_near = yellow_near - self.lane_width_px / 2.0
+            center_far = yellow_far - self.lane_width_px / 2.0
+            mode, confidence = "YELLOW_ONLY", 0.60
 
         else:
             center_near = center_far = None
@@ -439,6 +445,18 @@ def build_yellow_path(points, w, h):
     return path
 
 
+def _yellow_x_at_row(yellow_path, target_y):
+    """노란 경로 점들에서 target_y(BEV row)의 x값을 선형보간. 점이 없으면 None,
+    범위를 벗어나면 가장 가까운 끝점 값으로 고정(clamp)된다. LaneTracker가 코리도
+    오른쪽 경계(노란선) 위치를 y_near/y_far에서 구하는 데 쓴다."""
+    if not yellow_path:
+        return None
+    pts = sorted(yellow_path, key=lambda p: -p[1])   # y 내림차순(가까운 점 먼저)
+    neg_ys = [-p[1] for p in pts]                     # np.interp는 x가 증가해야 하므로 부호 반전
+    xs = [p[0] for p in pts]
+    return float(np.interp(-target_y, neg_ys, xs))
+
+
 def detect_yellow_path(bev_frame):
     """C 섹션 공개 진입점: BEV 이미지 -> (노란 마스크, 중심점 리스트, 연결된 경로)."""
     mask = make_yellow_mask(bev_frame)
@@ -456,11 +474,13 @@ def detect_yellow_path(bev_frame):
 
 def detect_lane_lines(bev_frame) -> LaneObservation:
     """B(흰선) + C(노란선) 결과를 하나의 LaneObservation으로 합쳐 반환.
-    decision/lane_judge.py는 이 하나만 받아서 STRAIGHT/CORNER/OFF_TRACK을 판단한다."""
+    decision/lane_judge.py는 이 하나만 받아서 STRAIGHT/CORNER/OFF_TRACK을 판단한다.
+    노란선을 코리도 오른쪽 경계로 쓰는 LaneTracker.detect()가 yellow_path를 필요로
+    하므로, 노란선 인식(C)을 흰선 인식(B)보다 먼저 끝내둔다."""
     white_mask = make_white_mask(bev_frame)
-    obs = _lane_tracker.detect(white_mask)
-
     yellow_mask, yellow_points, yellow_path = detect_yellow_path(bev_frame)
+
+    obs = _lane_tracker.detect(white_mask, yellow_path)
     obs.yellow_points = yellow_points
     obs.yellow_path = yellow_path
     obs.bev_h, obs.bev_w = bev_frame.shape[:2]

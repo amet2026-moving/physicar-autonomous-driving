@@ -15,10 +15,11 @@
 # 한참 지난 뒤까지 최대치를 끌고 가지 않는다).
 #
 # 팀 결정: 정지/후진은 절대 하지 않는다(부딪히는 게 낫다는 판단). 그래서 최저속도는
-# AVOID_EMERGENCY_SPEED고, 0으로는 절대 안 내려간다. 콘 형상으로 아직 확정되지 않은
-# 물체(형상필터 실패, 대각선 접근으로 각도창을 벗어난 경우 등)도 전방 근접 + 중심선
-# 여유 부족이면 raw 클러스터의 cy 부호로 즉시 회피방향을 잡는다 -- 대각선 장애물
-# 앞에서 서버리던 원인이었던 부분.
+# AVOID_EMERGENCY_SPEED고, 0으로는 절대 안 내려간다. 회피 방향도 팀 결정으로 항상
+# 오른쪽 고정(config.control_params.AVOID_DIRECTION_SIGN)이라 장애물의 실제 좌/우
+# 위치는 보지 않는다 -- 콘 형상으로 아직 확정되지 않은 물체(형상필터 실패, 대각선
+# 접근으로 각도창을 벗어난 경우 등)도 전방 근접 + 중심선 여유 부족이면 그대로
+# 오른쪽으로 반응한다.
 #
 # 오프셋을 조향으로 바꾸는 계산은 control/lane_follow.steer_with_offset()을 그대로
 # 재사용한다(근/원거리에 같은 오프셋을 줘서, 차선 중심 자체를 옆으로 민 것처럼
@@ -29,7 +30,6 @@ import numpy as np
 from config import control_params as cfg
 from config import lidar_params as lidar_cfg
 from control import lane_follow
-from utils.states import ObstacleState
 
 
 def _lateral_clearance(cluster):
@@ -66,18 +66,6 @@ def _closest_raw_hazard(clusters):
     return min(hits, key=lambda c: c.cx)
 
 
-def _pick_sign(obstacle_state, cluster):
-    """회피방향 부호(+1=오른쪽으로 피함, -1=왼쪽으로 피함). obstacle_state가 있으면
-    그걸(차선기준 좌/우) 우선, 없으면 raw 클러스터의 cy 부호로 즉석 결정."""
-    if obstacle_state == ObstacleState.LEFT:
-        return +1.0
-    if obstacle_state == ObstacleState.RIGHT:
-        return -1.0
-    if cluster is not None:
-        return +1.0 if float(cluster.cy) > 0.0 else -1.0
-    return 0.0
-
-
 def _avoid_magnitude(cx):
     """장애물까지 남은 전방거리(cx, m)에 따른 회피량 배율(0~1)의 사다리꼴 곡선.
     react_x보다 멀면 0, margin_x 이내(바로 옆 지나는 구간)는 1로 유지, 그보다 확실히
@@ -104,15 +92,14 @@ class ObstacleAvoidController:
     def reset(self):
         self.offset_ratio = 0.0
 
-    def step(self, obstacle_state, fusion_result, clusters, lane_obs) -> tuple[float, float, str]:
+    def step(self, fusion_result, clusters, lane_obs) -> tuple[float, float, str]:
         """이번 프레임의 (조향각(도), 속도(m/s), status)를 반환.
         status는 "ACTIVE"(회피 오프셋이 아직 남아있음) / "DONE"(다음 프레임부터
         LANE_FOLLOW로 복귀해도 됨) 중 하나."""
         cluster = fusion_result.cluster or _closest_raw_hazard(clusters) if cfg.AVOIDANCE_ENABLED else None
 
         if cluster is not None:
-            sign = _pick_sign(obstacle_state, cluster)
-            target_ratio = sign * _avoid_magnitude(float(cluster.cx)) * cfg.AVOID_FULL_OFFSET_RATIO
+            target_ratio = cfg.AVOID_DIRECTION_SIGN * _avoid_magnitude(float(cluster.cx)) * cfg.AVOID_FULL_OFFSET_RATIO
         else:
             target_ratio = 0.0
 

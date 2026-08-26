@@ -1,10 +1,13 @@
 # sensors/camera.py의 차선 기하 정보와 sensors/lidar.py의 클러스터 정보를 결합해서,
-# 장애물의 좌/우를 '차량(라이다) 자체 기준'이 아니라 '차선 기준'으로 판단한다.
-# 차량이 차선 중앙에서 벗어나 있으면 두 기준이 서로 다른 답을 낼 수 있기 때문.
+# 장애물이 '지금 내가 달리는 코리도(왼쪽 흰선~노란선)' 안에 들어와 있는지 판단한다.
+# 회피 방향은 항상 오른쪽으로 고정(팀 결정)이라 좌/우를 가릴 필요가 없다 -- 노란선
+# 건너 반대 차로를 지나가는 물체는 코리도 밖이므로 무시해야, 반대 차로 통행마다
+# 헛되이 회피 모드로 들어가지 않는다.
 #
-# 차선 기준선은 노란 점선을 우선 사용하고(camera.py는 코너 여부와 무관하게 항상
-# 노란선을 인식해둠), 노란선이 안 보이면 흰선 좌우 중심선(center_near/center_far)으로
-# 대체한다.
+# 코리도 기준선은 camera.py의 LaneTracker가 이미 만들어둔 lane_obs.center_near/far
+# (왼쪽흰선+노란선 중점)와 lane_width_px(코리도 폭 EMA)를 그대로 재사용한다 -- 그게
+# 곧 지금 차가 따라가고 있는 주행선이므로, 여기서 별도의 기준선을 다시 고를 필요가
+# 없다.
 #
 # T_T.py에는 이 모듈에 대응하는 코드가 없음: ConeReadOnlyDetector는 클러스터의 좌우(cy)를
 # 라이다 자체 좌표계 기준으로만 판단했다. 실험적으로는 AutoV3_fusion.py(임시 몽키패치
@@ -29,7 +32,7 @@ from sensors import lidar
 @dataclass
 class FusionResult:
     """카메라+라이다 융합 결과."""
-    side: str                    # "NONE"/"LEFT"/"RIGHT" -- 차선 기준 장애물 위치
+    side: str                    # "NONE"/"IN_CORRIDOR" -- 지금 주행 코리도 내부 여부
     distance_m: float | None = None   # 장애물까지 전방 거리 (m)
     cluster: object = None            # 판단에 쓰인 원본 라이다 클러스터
 
@@ -41,28 +44,8 @@ _last_debug = {}
 
 
 # ============================================================
-# LANE_REFERENCE -- 차선 기준선 고르기 (노란 점선 우선, 없으면 흰선 중심선)
+# 기하 변환 헬퍼 -- 장애물 전방거리 <-> BEV 행(row), 코리도 중심선 보간
 # ============================================================
-
-def _lane_reference_points(lane_obs):
-    """차선 기준선을 이루는 점 목록을 반환: [(x,y), ...] (BEV px, y는 아무 순서나 가능).
-    노란 점선(yellow_path)이 있으면 그걸 우선 쓰고, 없으면 흰선 좌우 중심선
-    (center_near/center_far)으로 대체한다. 둘 다 없으면 (None, "NONE")."""
-    if not lane_obs.bev_w:
-        return None, "NONE"
-
-    if lane_obs.yellow_path:
-        # 노란점이 1개뿐이어도 기준선이 되도록, 차량 위치(화면 하단 중앙)를 첫
-        # 점으로 붙여서 최소 2점짜리 선을 만든다. build_yellow_path()가 경로를
-        # 시작할 때 쓰는 차량 위치 근사(화면 하단 중앙)와 같은 발상.
-        vehicle_anchor = (lane_obs.bev_w / 2.0, lane_obs.y_near)
-        return [vehicle_anchor] + list(lane_obs.yellow_path), "YELLOW"
-
-    if lane_obs.center_near is not None and lane_obs.center_far is not None:
-        return [(lane_obs.center_near, lane_obs.y_near), (lane_obs.center_far, lane_obs.y_far)], "WHITE_CENTER"
-
-    return None, "NONE"
-
 
 def _interp_x_at_row(points, target_y):
     """기준선 점들을 BEV y좌표 순으로 정렬한 뒤, target_y에서의 x를 선형보간.
@@ -82,17 +65,14 @@ def _target_row_for_distance(cx_m, lane_obs):
 
 
 # ============================================================
-# OBSTACLE_SIDE_CLASSIFICATION -- 장애물 좌/우를 차선 기준으로 판정
+# OBSTACLE_CORRIDOR_CLASSIFICATION -- 장애물이 주행 코리도 안에 있는지 판정
 # ============================================================
 
 def classify_obstacle_side(lane_obs, clusters) -> FusionResult:
-    """가장 가까운 유효 클러스터(콘 형상 필터 통과)를 골라, 차선 기준선
-    (노란 점선 우선, 없으면 흰선 중심선) 대비 좌/우를 판정한다.
-
-    판정 방법: 카메라 쪽(차선 기준선이 화면 중심에서 벗어난 비율)과 라이다 쪽
-    (장애물이 차량 정면축에서 벗어난 비율)을 각각 계산해서 뺀다 -- 둘 다
-    "중심 대비 비율"이라는 같은 단위로 맞춘 뒤 비교하는 것이므로, 차량이 차선
-    중앙에서 벗어나 있어도(두 기준이 다른 값을 가리켜도) 올바르게 상쇄된다."""
+    """가장 가까운 유효 클러스터(콘 형상 필터 통과)를 골라, 지금 주행 코리도
+    (lane_obs.center_near/far ± lane_width_px/2, 즉 왼쪽흰선~노란선) 안에 들어와
+    있는지 판정한다. 회피 방향은 항상 오른쪽으로 고정(팀 결정)이라 좌/우를 가릴
+    필요가 없다 -- 노란선 건너 반대 차로를 지나가는 물체는 코리도 밖이라 무시된다."""
     _last_debug.clear()
 
     valid = lidar.classify_cone_candidates(clusters, corner_hint=False)
@@ -100,42 +80,37 @@ def classify_obstacle_side(lane_obs, clusters) -> FusionResult:
         return FusionResult(side="NONE")
 
     cluster = min(valid, key=lambda c: c.dmin)
-    ref_points, source = _lane_reference_points(lane_obs)
     _last_debug["cluster"] = cluster
-    _last_debug["reference_points"] = ref_points
-    _last_debug["reference_source"] = source
 
-    if ref_points is None:
+    if abs(cluster.cy) < fcfg.FUSION_CY_DEADBAND_M:
+        # 라이다 정면축 거의 정중앙 -- 코리도 기준선을 볼 것도 없이 명백히 막고 있음.
+        _last_debug["reason"] = "CENTERED"
+        return FusionResult(side="IN_CORRIDOR", distance_m=cluster.cx, cluster=cluster)
+
+    if lane_obs.center_near is None or lane_obs.center_far is None or not lane_obs.bev_w:
         _last_debug["reason"] = "NO_REFERENCE"
         return FusionResult(side="NONE", distance_m=cluster.cx, cluster=cluster)
 
-    if abs(cluster.cy) < fcfg.FUSION_CY_DEADBAND_M:
-        _last_debug["reason"] = "CENTERED"
-        return FusionResult(side="NONE", distance_m=cluster.cx, cluster=cluster)
-
-    half_w = lane_obs.bev_w / 2.0
     target_row = _target_row_for_distance(cluster.cx, lane_obs)
-    lane_x = _interp_x_at_row(ref_points, target_row)
+    lane_x = _interp_x_at_row(
+        [(lane_obs.center_near, lane_obs.y_near), (lane_obs.center_far, lane_obs.y_far)],
+        target_row,
+    )
+    corridor_half_px = 0.5 * (
+        lane_obs.lane_width_px
+        if lane_obs.lane_width_px is not None
+        else fcfg.FUSION_DEFAULT_CORRIDOR_WIDTH_RATIO * lane_obs.bev_w
+    )
+    margin_px = fcfg.FUSION_CORRIDOR_MARGIN_RATIO * corridor_half_px
 
-    # 카메라 쪽: 차선 기준선이 화면 중심에서 얼마나 벗어났는지 (+ = 오른쪽).
-    lane_offset_ratio = (lane_x - half_w) / half_w
-    # 라이다 쪽: 장애물이 차량 정면축에서 얼마나 벗어났는지, 같은 비율 단위로.
-    # cy는 +좌/-우이므로 부호를 뒤집어 이미지 좌표계(+우)로 맞춘다.
-    cone_offset_ratio = float(np.clip(-cluster.cy / fcfg.FUSION_LATERAL_HALF_WIDTH_M, -1.5, 1.5))
-    relative = cone_offset_ratio - lane_offset_ratio
-
-    if relative > fcfg.FUSION_SIDE_DEADBAND_RATIO:
-        side = "RIGHT"
-    elif relative < -fcfg.FUSION_SIDE_DEADBAND_RATIO:
-        side = "LEFT"
-    else:
-        side = "NONE"
+    obstacle_px, _ = _reproject_cluster_px(cluster, lane_obs)
+    in_corridor = (lane_x - corridor_half_px - margin_px) <= obstacle_px <= (lane_x + corridor_half_px + margin_px)
+    side = "IN_CORRIDOR" if in_corridor else "NONE"
 
     _last_debug.update({
         "lane_x": lane_x, "target_row": target_row,
-        "lane_offset_ratio": lane_offset_ratio,
-        "cone_offset_ratio": cone_offset_ratio,
-        "relative": relative,
+        "corridor_half_px": corridor_half_px, "obstacle_px": obstacle_px,
+        "in_corridor": in_corridor,
     })
 
     return FusionResult(side=side, distance_m=cluster.cx, cluster=cluster)
@@ -147,7 +122,8 @@ def classify_obstacle_side(lane_obs, clusters) -> FusionResult:
 
 def _reproject_cluster_px(cluster, lane_obs):
     """클러스터의 (cx,cy)를 BEV 픽셀 좌표로 근사 변환 (차선 기준과 무관하게,
-    클러스터 자신의 차량-정면축 대비 위치만으로). draw_debug()의 점 찍기용."""
+    클러스터 자신의 차량-정면축 대비 위치만으로). draw_debug()의 점 찍기와
+    classify_obstacle_side()의 코리도 내부 판정에 공용으로 쓴다."""
     if not lane_obs.bev_w:
         return None
     half_w = lane_obs.bev_w / 2.0
@@ -164,15 +140,24 @@ def draw_debug(frame, lane_obs, clusters, fusion_result: FusionResult) -> np.nda
     캐시(기준선/비율 등)가 채워져 있다."""
     h, w = frame.shape[:2]
 
-    # ---- 패널 1: BEV + 차선 기준선 + 클러스터 오버레이 ----
+    # ---- 패널 1: BEV + 주행 코리도(왼쪽흰선~노란선) + 클러스터 오버레이 ----
     bev_vis = frame.copy()
 
-    ref_points = _last_debug.get("reference_points")
-    source = _last_debug.get("reference_source", "NONE")
-    if ref_points:
-        line_color = (255, 0, 255) if source == "YELLOW" else (0, 255, 255)   # magenta / cyan
-        pts = np.array([(int(x), int(y)) for x, y in sorted(ref_points, key=lambda p: -p[1])], dtype=np.int32)
-        cv2.polylines(bev_vis, [pts], False, line_color, 2, cv2.LINE_AA)
+    if lane_obs.center_near is not None and lane_obs.center_far is not None:
+        center_pts = np.array(
+            [(int(lane_obs.center_near), lane_obs.y_near), (int(lane_obs.center_far), lane_obs.y_far)],
+            dtype=np.int32,
+        )
+        cv2.polylines(bev_vis, [center_pts], False, (0, 255, 255), 2, cv2.LINE_AA)   # cyan -- 코리도 중심선
+
+        half_px = _last_debug.get("corridor_half_px")
+        if half_px is not None:
+            for sign, color in ((-1, (0, 255, 0)), (+1, (255, 0, 255))):   # green=왼쪽경계 magenta=오른쪽경계(노란선)
+                bound_pts = np.array([
+                    (int(lane_obs.center_near + sign * half_px), lane_obs.y_near),
+                    (int(lane_obs.center_far + sign * half_px), lane_obs.y_far),
+                ], dtype=np.int32)
+                cv2.polylines(bev_vis, [bound_pts], False, color, 1, cv2.LINE_AA)
 
     valid_ids = {id(c) for c in lidar.classify_cone_candidates(clusters, corner_hint=False)}
     chosen = fusion_result.cluster
@@ -199,7 +184,7 @@ def draw_debug(frame, lane_obs, clusters, fusion_result: FusionResult) -> np.nda
     if lane_obs.bev_w:
         cv2.circle(bev_vis, (int(lane_obs.bev_w / 2), lane_obs.y_near), 6, (255, 255, 255), -1)
 
-    cv2.putText(bev_vis, f"FUSION  ref={source}  magenta=yellow cyan=white-center",
+    cv2.putText(bev_vis, "FUSION  cyan=corridor center  green=left bound  magenta=yellow bound",
                 (12, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
 
     # ---- 패널 2: 라이다 위에서 본 뷰 (sensors/lidar.py의 draw_debug 재사용) ----
@@ -207,7 +192,7 @@ def draw_debug(frame, lane_obs, clusters, fusion_result: FusionResult) -> np.nda
 
     # ---- 패널 3: 텍스트 정보 ----
     info = np.zeros((h, w, 3), dtype=np.uint8)
-    lines = [f"reference source: {source}"]
+    lines = [f"lane mode: {lane_obs.mode}"]
 
     if chosen is None:
         lines.append("chosen cluster: none (no cone-shaped cluster)")
@@ -215,12 +200,11 @@ def draw_debug(frame, lane_obs, clusters, fusion_result: FusionResult) -> np.nda
         lines.append(f"cx={chosen.cx:+.2f}m  cy={chosen.cy:+.2f}m  dmin={chosen.dmin:.2f}m")
         reason = _last_debug.get("reason")
         if reason:
-            lines.append(f"side=NONE (reason={reason})")
-        elif "relative" in _last_debug:
+            lines.append(f"side={fusion_result.side} (reason={reason})")
+        elif "in_corridor" in _last_debug:
             lines += [
-                f"lane_offset_ratio={_last_debug['lane_offset_ratio']:+.3f}",
-                f"cone_offset_ratio={_last_debug['cone_offset_ratio']:+.3f}",
-                f"relative={_last_debug['relative']:+.3f}  deadband={fcfg.FUSION_SIDE_DEADBAND_RATIO}",
+                f"lane_x={_last_debug['lane_x']:.1f}  obstacle_px={_last_debug['obstacle_px']:.1f}",
+                f"corridor_half_px={_last_debug['corridor_half_px']:.1f}",
                 f"side={fusion_result.side}",
             ]
 
@@ -261,10 +245,7 @@ if __name__ == "__main__":
             fusion_result = classify_obstacle_side(lane_obs, clusters)
             panel = draw_debug(bev, lane_obs, clusters, fusion_result)
 
-            status = (
-                f"ref={_last_debug.get('reference_source', 'NONE')} "
-                f"side={fusion_result.side} dist={fusion_result.distance_m}"
-            )
+            status = f"lane_mode={lane_obs.mode} side={fusion_result.side} dist={fusion_result.distance_m}"
             debug_view.update_web(panel, status)
 
             proc_time = time.time() - t0
