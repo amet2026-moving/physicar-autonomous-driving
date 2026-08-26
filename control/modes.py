@@ -6,8 +6,8 @@
 # 중이면(avoid_status == "ACTIVE") OBSTACLE_AVOID, 그 외엔 LANE_FOLLOW.
 #
 # TrafficLightState는 일부러 이 함수의 입력에 넣지 않음 -- 신호등 판단은
-# decision/traffic_judge.wait_for_green()에서 주행 루프 시작 전에 딱 한 번 게이트로
-# 처리함(light_1.py의 wait_for_start_gate()와 동일한 방식).
+# decision/traffic_judge.wait_for_departure()에서 주행 루프 시작 전에 딱 한 번
+# 게이트로 처리함.
 from utils.states import ObstacleState, VehicleMode
 
 

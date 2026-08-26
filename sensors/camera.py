@@ -46,20 +46,18 @@ class LaneObservation:
 
 @dataclass
 class TrafficLightObservation:
-    """한 프레임의 신호등 인식 결과."""
-    red_score: float = 0.0             # 빨간불 후보 점수 (0~1, 후보 없으면 0)
-    green_score: float = 0.0           # 초록불 후보 점수 (0~1, 후보 없으면 0)
-    red_bbox: tuple | None = None      # 빨간불 후보 바운딩박스 (x,y,w,h, ROI 로컬 px)
-    green_bbox: tuple | None = None    # 초록불 후보 바운딩박스 (x,y,w,h, ROI 로컬 px)
-    locked: bool = False               # 위치 락 성립 여부 (D-2)
-    locked_bbox: tuple | None = None   # 락된 바운딩박스 (x,y,w,h, ROI 로컬 px), 락 전엔 None
-    lock_streak: int = 0               # 위치 락 진행 카운트 (locked=False일 때 진행상황 참고용)
+    """한 프레임의 신호등(RED-LOCK) 인식 결과. GREEN은 보지 않는다 -- decision/
+    traffic_judge.py의 _RedLockGate가 RED의 등장/소실만으로 출발을 판단한다."""
+    red_detected: bool = False    # 이번 프레임에 RED로 볼만한 컨투어가 있었는지
+    red_ratio: float = 0.0        # 빨강 픽셀 비율 (검사 영역 대비, 0~1)
+    red_pixels: int = 0           # 빨강 픽셀 총 개수 (개) -- 락 유지 판정의 두 번째 기준
+    largest_area: float = 0.0     # 가장 큰 빨간 컨투어 면적 (px^2)
+    valid_frame: bool = False     # 평균 명도가 너무 어둡지 않은 정상 프레임인지
+    bbox: tuple | None = None     # 가장 큰 빨간 컨투어의 bbox (x1,y1,x2,y2, ROI-local px)
 
 
-# draw_debug()가 마스크/신호등 스캔 원본을 다시 계산하지 않고 쓰도록 저장해두는
-# 캐시. detect_lane_lines()/detect_traffic_light() 호출 시마다 최신으로 갱신됨.
-# (신호등 위치락은 상태를 갖고 있어서, 시각화를 위해 여기서 또 update()를 부르면
-# lock_streak가 프레임당 2번 올라가는 부작용이 생김 -- 그래서 재계산 대신 캐시.)
+# draw_debug()가 마스크 원본을 다시 계산하지 않고 쓰도록 저장해두는 캐시.
+# detect_lane_lines()/detect_red() 호출 시마다 최신으로 갱신됨.
 _last_debug = {}
 
 
@@ -499,11 +497,13 @@ def detect_lane_lines(bev_frame) -> LaneObservation:
 
 
 # ============================================================
-# D. TRAFFIC_LIGHT_PERCEPTION -- 신호등 인식 (후보 탐지 -> 위치 락)
+# D. TRAFFIC_LIGHT_PERCEPTION -- 신호등 RED 인식 (TTTTTT_physicar_ros2_red_lock_myapp.py 이식)
 # ============================================================
-# D-1: 고정 ROI 안에서 빨강/초록 후보 블롭을 매 프레임 독립적으로 채점.
-# D-2: 같은 자리에 반복 등장하는 후보만 '진짜 신호등'으로 확정(위치 락)하고,
-#      그 이후엔 락된 자리 주변만 봐서 사람/다른 조명 같은 노이즈를 차단.
+# GREEN은 보지 않는다. ROI(또는 judge 쪽이 넘겨주는 락 패치, focus_box) 안에서 순수
+# HSV로 빨강만 찾는다 -- "락 성립 후 그 자리만 계속 보기"는 decision/traffic_judge.py
+# 의 _RedLockGate가 focus_box를 통해 담당하고(판단), 여기는 "그 영역 안에 지금 빨강이
+# 얼마나 있는가"만 답한다(인식). 판단과 인식을 분리한 이 프로젝트 컨벤션에 맞춰,
+# 원본 파일의 lock 상태 관리(TrafficLightStartDetector.lock_box 등)는 여기 두지 않음.
 
 def traffic_crop_roi(frame):
     """고정 ROI(FIXED_ROI_NORM)만 잘라낸다. (roi, roi_box=(x1,y1,x2,y2) 프레임 px) 반환."""
@@ -516,289 +516,93 @@ def traffic_crop_roi(frame):
     return frame[y1:y2, x1:x2].copy(), (x1, y1, x2, y2)
 
 
-def traffic_gray_world_balance(bgr):
-    """그레이월드 화이트밸런스로 조명 편향을 상쇄한다. 신호가 항상 최대 밝기로
-    고정된 환경에서는 절대 색상값이 클리핑으로 무너지므로(빨강->노랑, 초록->흰색),
-    채널 평균을 회색 기준으로 재조정해 판정을 조금이라도 실제 색에 가깝게 만든다."""
-    f = bgr.astype(np.float32)
-    mb = float(f[:, :, 0].mean()) + 1e-6
-    mg = float(f[:, :, 1].mean()) + 1e-6
-    mr = float(f[:, :, 2].mean()) + 1e-6
-    gray = (mb + mg + mr) / 3.0
-    f[:, :, 0] *= gray / mb
-    f[:, :, 1] *= gray / mg
-    f[:, :, 2] *= gray / mr
-    return np.clip(f, 0, 255).astype(np.uint8)
+def make_red_mask(bgr):
+    """HSV 두 구간(Hue 0 부근 + 180 부근, 빨강의 색상환 랩어라운드) OR로 빨강
+    마스크를 만든다. valid_frame(평균 명도가 너무 어둡지 않은 정상 프레임인지)도
+    같이 반환 -- 신호등 자체가 안 보이는 게 아니라 카메라가 통째로 깜깜한 경우를
+    "빨강 없음"과 구분하기 위함."""
+    hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
+    valid_frame = float(np.mean(hsv[:, :, 2])) >= cfg.TRAFFIC_MIN_ROI_MEAN_V
+
+    low1 = np.array(cfg.TRAFFIC_RED_LOW_1, dtype=np.uint8)
+    high1 = np.array(cfg.TRAFFIC_RED_HIGH_1, dtype=np.uint8)
+    low2 = np.array(cfg.TRAFFIC_RED_LOW_2, dtype=np.uint8)
+    high2 = np.array(cfg.TRAFFIC_RED_HIGH_2, dtype=np.uint8)
+
+    mask = cv2.bitwise_or(cv2.inRange(hsv, low1, high1), cv2.inRange(hsv, low2, high2))
+
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (cfg.TRAFFIC_MORPH_KERNEL_SIZE,) * 2)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    return mask, valid_frame
 
 
-def traffic_make_masks(roi, allow_mask=None):
-    """R/G 채널의 '상대적 우열'로만 적/녹을 가른다(절대 HSV 대신). 최대 밝기로
-    고정된 LED는 절대 채도/색상은 무너져도 어느 채널이 더 높은지는 남기 때문.
-    allow_mask: True인 픽셀만 후보로 남김 (위치 락 후 그 영역 밖 노이즈 차단용)."""
-    balanced = traffic_gray_world_balance(roi)
-    hsv = cv2.cvtColor(balanced, cv2.COLOR_BGR2HSV)
-    _, g, r = cv2.split(balanced)
+def _red_contour_stats(mask):
+    """마스크에서 (빨강 픽셀 수, 빨강 비율, 최댓값 컨투어 면적, 최댓값 컨투어의
+    bbox=(x1,y1,x2,y2)) 반환. 컨투어가 하나도 없으면 bbox는 None."""
+    red_pixels = int(cv2.countNonZero(mask))
+    total_pixels = int(mask.shape[0] * mask.shape[1])
+    red_ratio = red_pixels / float(total_pixels) if total_pixels > 0 else 0.0
 
-    ri = r.astype(np.int16)
-    gi = g.astype(np.int16)
-    vi = hsv[:, :, 2].astype(np.int16)
-    lit = vi >= cfg.TRAFFIC_LIT_V_MIN   # 색과 무관하게 '충분히 밝은 픽셀'만 후보
-
-    red = lit & ((ri - gi) >= cfg.TRAFFIC_COLOR_RANK_MARGIN)
-    green = lit & ((gi - ri) >= cfg.TRAFFIC_COLOR_RANK_MARGIN)
-
-    if allow_mask is not None:
-        red = red & allow_mask
-        green = green & allow_mask
-
-    red = red.astype(np.uint8) * 255
-    green = green.astype(np.uint8) * 255
-
-    k3 = np.ones((3, 3), np.uint8)
-    red = cv2.morphologyEx(red, cv2.MORPH_CLOSE, k3)
-    green = cv2.morphologyEx(green, cv2.MORPH_CLOSE, k3)
-    return red, green, hsv, balanced
-
-
-def traffic_dark_surround_ratio(hsv, contour):
-    """블롭 주변을 확장한 영역에서 어두운 픽셀 비율. 신호등 하우징(몸체)은
-    항상 어두우므로, 이게 낮으면 밝은 반사광/다른 물체일 가능성이 크다."""
-    h, w = hsv.shape[:2]
-    x, y, bw, bh = cv2.boundingRect(contour)
-    cx, cy = x + bw / 2.0, y + bh / 2.0
-
-    ew = max(bw + 4, int(round(bw * cfg.TRAFFIC_DARK_EXPAND)))
-    eh = max(bh + 4, int(round(bh * cfg.TRAFFIC_DARK_EXPAND)))
-    ex1, ey1 = max(0, int(round(cx - ew / 2))), max(0, int(round(cy - eh / 2)))
-    ex2, ey2 = min(w, int(round(cx + ew / 2))), min(h, int(round(cy + eh / 2)))
-    if ex2 <= ex1 or ey2 <= ey1:
-        return 0.0
-
-    ring = np.full((ey2 - ey1, ex2 - ex1), 255, dtype=np.uint8)
-    shifted = contour.copy()
-    shifted[:, 0, 0] -= ex1
-    shifted[:, 0, 1] -= ey1
-    cv2.drawContours(ring, [shifted], -1, 0, thickness=-1)   # 블롭 자기 자신은 링에서 제외
-
-    v = hsv[ey1:ey2, ex1:ex2, 2]
-    valid = ring > 0
-    n = int(np.count_nonzero(valid))
-    if n < cfg.TRAFFIC_MIN_RING_PIXELS:
-        return 0.0
-
-    dark = (v <= cfg.TRAFFIC_DARK_V_MAX) & valid
-    return float(np.count_nonzero(dark)) / float(n)
-
-
-def traffic_candidate_score(area_ratio, fill, circularity, dark_ratio):
-    """후보의 형태 점수 (0~1). 하우징 어둠(dark_ratio)에 가중치 절반을 둔다 --
-    램프 색상 자체는 조명에 흔들리지만 '몸체가 어둡다'는 훨씬 안정적인 신호라서."""
-    def norm(v, lo, hi):
-        return float(np.clip((v - lo) / max(hi - lo, 1e-6), 0.0, 1.0))
-    area_score = norm(area_ratio, cfg.TRAFFIC_MIN_BLOB_AREA_RATIO, 0.0025)
-    fill_score = norm(fill, cfg.TRAFFIC_MIN_BBOX_FILL, 0.85)
-    circularity_score = norm(circularity, cfg.TRAFFIC_MIN_CIRCULARITY, 0.90)
-    dark_score = norm(dark_ratio, cfg.TRAFFIC_MIN_DARK_SURROUND_RATIO, 0.90)
-
-    return 0.15 * area_score + 0.20 * fill_score + 0.15 * circularity_score + 0.50 * dark_score
-
-
-def traffic_mean_rg_gap(balanced, contour):
-    """블롭 내부 평균 R-G값 (진단/보조용). 색이 완전히 무너져도 부호/크기 변화는
-    상대적으로 남는다는 전제로, 디버그 화면에서 판정 근거를 눈으로 확인하는 데 쓴다."""
-    mask = np.zeros(balanced.shape[:2], dtype=np.uint8)
-    cv2.drawContours(mask, [contour], -1, 255, thickness=-1)
-    sel = mask > 0
-    if not np.any(sel):
-        return 0.0
-    _, g, r = cv2.split(balanced)
-    return float(r[sel].mean()) - float(g[sel].mean())
-
-
-def traffic_find_best_candidate(mask, hsv, balanced):
-    """마스크에서 contour를 형태/하우징 조건으로 걸러 가장 점수 높은 블롭 하나를
-    반환 (없으면 None). 반환 dict: bbox/area_ratio/fill/circularity/dark_ratio/score/rg_gap."""
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    h, w = mask.shape
-    roi_area = float(h * w)
-    best = None
-
+    largest_area = 0.0
+    largest_bbox = None
     for contour in contours:
         area = float(cv2.contourArea(contour))
-        if area <= 0.0:
-            continue
-        area_ratio = area / roi_area
-        if not (cfg.TRAFFIC_MIN_BLOB_AREA_RATIO <= area_ratio <= cfg.TRAFFIC_MAX_BLOB_AREA_RATIO):
-            continue
+        if area > largest_area:
+            largest_area = area
+            x, y, w, h = cv2.boundingRect(contour)
+            largest_bbox = (x, y, x + w, y + h)
 
-        x, y, bw, bh = cv2.boundingRect(contour)
-        if (x <= cfg.TRAFFIC_EDGE_MARGIN_PX or y <= cfg.TRAFFIC_EDGE_MARGIN_PX
-                or x + bw >= w - cfg.TRAFFIC_EDGE_MARGIN_PX or y + bh >= h - cfg.TRAFFIC_EDGE_MARGIN_PX):
-            continue   # 화면 경계에 걸친 후보는 잘려서 형태 판정이 부정확하므로 제외
-
-        bbox_area = float(max(1, bw * bh))
-        fill = area / bbox_area
-        if fill < cfg.TRAFFIC_MIN_BBOX_FILL:
-            continue
-
-        perimeter = float(cv2.arcLength(contour, True))
-        if perimeter <= 1e-6:
-            continue
-        circularity = float(4.0 * np.pi * area / (perimeter * perimeter))
-        if circularity < cfg.TRAFFIC_MIN_CIRCULARITY:
-            continue
-
-        dark_ratio = traffic_dark_surround_ratio(hsv, contour)
-        if dark_ratio < cfg.TRAFFIC_MIN_DARK_SURROUND_RATIO:
-            continue
-
-        score = traffic_candidate_score(area_ratio, fill, circularity, dark_ratio)
-        candidate = {
-            "bbox": (x, y, bw, bh), "area_ratio": area_ratio, "fill": fill,
-            "circularity": circularity, "dark_ratio": dark_ratio, "score": score,
-            "rg_gap": traffic_mean_rg_gap(balanced, contour),
-        }
-        if best is None or candidate["score"] > best["score"]:
-            best = candidate
-
-    return best
+    return red_pixels, red_ratio, largest_area, largest_bbox
 
 
-def detect_traffic_light_candidates(frame, allow_mask=None):
-    """D-1 공개 진입점: 원본 프레임 -> ROI 크롭 + 마스크 + red/green 최적후보.
-    반환 dict: roi, roi_box, red_mask, green_mask, red_candidate, green_candidate."""
-    roi, roi_box = traffic_crop_roi(frame)
-    red_mask, green_mask, hsv, balanced = traffic_make_masks(roi, allow_mask)
-    red_candidate = traffic_find_best_candidate(red_mask, hsv, balanced)
-    green_candidate = traffic_find_best_candidate(green_mask, hsv, balanced)
-    return {
-        "roi": roi, "roi_box": roi_box,
-        "red_mask": red_mask, "green_mask": green_mask,
-        "red_candidate": red_candidate, "green_candidate": green_candidate,
-    }
+def detect_red(frame, focus_box=None) -> TrafficLightObservation:
+    """D 섹션 공개 진입점: 원본 프레임 -> ROI(+선택적으로 그 안의 focus_box만) 안의
+    RED 관측 결과. focus_box(ROI-local px, x1,y1,x2,y2)가 주어지면 그 패치 안만
+    검사하되(락 후 다른 곳의 빨간 반사광/노이즈를 걸러내기 위함), 반환하는 bbox는
+    항상 ROI-local 좌표로 환산해서 준다 -- 호출부가 락 여부와 무관하게 같은
+    좌표계만 다루면 되게 하기 위함."""
+    roi, _roi_box = traffic_crop_roi(frame)
+    if roi.size == 0:
+        return TrafficLightObservation()
 
+    offset_x, offset_y = 0, 0
+    search_area = roi
 
-def _bbox_center(bbox):
-    x, y, w, h = bbox
-    return (x + w / 2.0, y + h / 2.0)
+    if focus_box is not None:
+        rh, rw = roi.shape[:2]
+        fx1, fy1, fx2, fy2 = focus_box
+        fx1 = max(0, min(int(fx1), rw - 1))
+        fy1 = max(0, min(int(fy1), rh - 1))
+        fx2 = max(fx1 + 1, min(int(fx2), rw))
+        fy2 = max(fy1 + 1, min(int(fy2), rh))
+        patch = roi[fy1:fy2, fx1:fx2]
+        if patch.size == 0:
+            return TrafficLightObservation()
+        offset_x, offset_y = fx1, fy1
+        search_area = patch
 
+    mask, valid_frame = make_red_mask(search_area)
+    red_pixels, red_ratio, largest_area, local_bbox = _red_contour_stats(mask)
 
-def _lock_region_bounds(shape_hw, locked_bbox):
-    """locked_bbox(ROI 로컬 좌표)를 상하좌우 비대칭 마진만큼 확장한 (x1,y1,x2,y2).
-    RED 아래에 GREEN이 켜지는 배치라 아래쪽(POSITION_LOCK_MARGIN_BOTTOM_PX)만
-    훨씬 넉넉하게 잡는다."""
-    h, w = shape_hw
-    x, y, bw, bh = locked_bbox
-    x1 = max(0, x - cfg.POSITION_LOCK_MARGIN_LEFT_PX)
-    y1 = max(0, y - cfg.POSITION_LOCK_MARGIN_TOP_PX)
-    x2 = min(w, x + bw + cfg.POSITION_LOCK_MARGIN_RIGHT_PX)
-    y2 = min(h, y + bh + cfg.POSITION_LOCK_MARGIN_BOTTOM_PX)
-    return x1, y1, x2, y2
+    bbox = None
+    if local_bbox is not None:
+        lx1, ly1, lx2, ly2 = local_bbox
+        bbox = (lx1 + offset_x, ly1 + offset_y, lx2 + offset_x, ly2 + offset_y)
 
+    red_detected = (
+        valid_frame
+        and red_ratio >= cfg.TRAFFIC_RED_MIN_RATIO
+        and largest_area >= cfg.TRAFFIC_RED_MIN_AREA
+    )
 
-def _lock_region_mask(shape_hw, locked_bbox):
-    """locked_bbox 주변(비대칭 마진 확장)만 True인 마스크. locked_bbox가 None이면
-    전체 True(락 전 = ROI 전체 허용)."""
-    h, w = shape_hw
-    if locked_bbox is None:
-        return np.ones((h, w), dtype=bool)
-    x1, y1, x2, y2 = _lock_region_bounds(shape_hw, locked_bbox)
-    mask = np.zeros((h, w), dtype=bool)
-    mask[y1:y2, x1:x2] = True
-    return mask
-
-
-class TrafficLightPositionLock:
-    """D-2: ROI 안에서 같은 위치에 POSITION_LOCK_FRAMES 연속 등장하는 블롭만
-    '진짜 신호등'으로 확정(lock)한다. 락 전에는 ROI 전체를, 락 후에는 락 영역
-    주변만 색상 판정 대상으로 삼아 사람/다른 조명 같은 노이즈를 구조적으로 차단.
-    프레임 간 상태(locked_bbox/lock_streak/...)를 갖는다."""
-
-    def __init__(self):
-        self.locked_bbox = None      # 락된 bbox (ROI 로컬 px), 락 전엔 None
-        self.lock_streak = 0         # 같은 위치가 연속으로 관측된 횟수
-        self.last_position = None    # 직전 프레임 최적후보 중심좌표 (연속성 비교용)
-        self.lock_last_seen = None   # 락 영역에서 마지막으로 후보를 본 시각 (time.monotonic)
-
-    def reset(self):
-        self.locked_bbox = None
-        self.lock_streak = 0
-        self.last_position = None
-        self.lock_last_seen = None
-
-    def update(self, frame):
-        """한 프레임 처리. 반환 dict: locked, bbox, red_candidate, green_candidate,
-        lock_streak, scan(디버그용 원시 스캔 결과)."""
-        if self.locked_bbox is None:
-            return self._update_searching(frame)
-        return self._update_locked(frame)
-
-    def _update_searching(self, frame):
-        scan = detect_traffic_light_candidates(frame, allow_mask=None)
-        best = scan["red_candidate"] or scan["green_candidate"]
-        if scan["red_candidate"] is not None and scan["green_candidate"] is not None:
-            best = max(scan["red_candidate"], scan["green_candidate"], key=lambda c: c["score"])
-
-        if best is not None:
-            center = _bbox_center(best["bbox"])
-            if (self.last_position is not None
-                    and abs(center[0] - self.last_position[0]) <= cfg.POSITION_MATCH_TOLERANCE_PX
-                    and abs(center[1] - self.last_position[1]) <= cfg.POSITION_MATCH_TOLERANCE_PX):
-                self.lock_streak += 1
-            else:
-                self.lock_streak = 1   # 위치가 튀면 카운트를 다시 시작 (사람 등 이동체 배제)
-            self.last_position = center
-
-            if self.lock_streak >= cfg.POSITION_LOCK_FRAMES:
-                self.locked_bbox = best["bbox"]
-                self.lock_last_seen = time.monotonic()
-        else:
-            self.lock_streak = 0
-            self.last_position = None
-
-        return {
-            "locked": False, "bbox": None,
-            "red_candidate": scan["red_candidate"], "green_candidate": scan["green_candidate"],
-            "lock_streak": self.lock_streak, "scan": scan,
-        }
-
-    def _update_locked(self, frame):
-        roi_only, _ = traffic_crop_roi(frame)
-        allow_mask = _lock_region_mask(roi_only.shape[:2], self.locked_bbox)
-        scan = detect_traffic_light_candidates(frame, allow_mask=allow_mask)
-
-        found = scan["red_candidate"] or scan["green_candidate"]
-        if found is not None:
-            self.lock_last_seen = time.monotonic()
-            self.locked_bbox = found["bbox"]   # 카메라 미세 흔들림을 따라가도록 락 위치 갱신
-        elif time.monotonic() - self.lock_last_seen >= cfg.POSITION_LOCK_LOST_SEC:
-            self.reset()   # 한동안 안 보이면 락을 풀고 다음 프레임부터 ROI 전체 재탐색
-
-        return {
-            "locked": self.locked_bbox is not None, "bbox": self.locked_bbox,
-            "red_candidate": scan["red_candidate"], "green_candidate": scan["green_candidate"],
-            "lock_streak": self.lock_streak, "scan": scan,
-        }
-
-
-_traffic_lock = TrafficLightPositionLock()   # 모듈 전역 싱글턴 -- detect_traffic_light()가 매 프레임 재사용
-
-
-def detect_traffic_light(frame) -> TrafficLightObservation:
-    """D 섹션 공개 진입점: 원본 프레임 -> 위치락까지 반영된 TrafficLightObservation."""
-    result = _traffic_lock.update(frame)
-    red, green = result["red_candidate"], result["green_candidate"]
-
-    _last_debug["traffic_scan"] = result["scan"]
-    _last_debug["traffic_locked_bbox"] = result["bbox"]
+    _last_debug["traffic_mask"] = mask
+    _last_debug["traffic_focus_box"] = focus_box
 
     return TrafficLightObservation(
-        red_score=red["score"] if red is not None else 0.0,
-        green_score=green["score"] if green is not None else 0.0,
-        red_bbox=red["bbox"] if red is not None else None,
-        green_bbox=green["bbox"] if green is not None else None,
-        locked=result["locked"], locked_bbox=result["bbox"],
-        lock_streak=result["lock_streak"],
+        red_detected=red_detected, red_ratio=red_ratio, red_pixels=red_pixels,
+        largest_area=largest_area, valid_frame=valid_frame, bbox=bbox,
     )
 
 
@@ -820,19 +624,19 @@ def _draw_polyline_fit(img, fit, color, thickness=3):
         cv2.polylines(img, [np.array(pts, dtype=np.int32)], False, color, thickness, cv2.LINE_AA)
 
 
-def _draw_traffic_candidate(img, candidate, color, label):
-    if candidate is None:
+def _draw_red_bbox(img, bbox, color, label):
+    if bbox is None:
         return
-    x, y, w, h = candidate["bbox"]
-    cv2.rectangle(img, (x, y), (x + w, y + h), color, 2)
-    cv2.putText(img, f"{label} {candidate['score']:.2f}", (x, max(18, y - 6)),
+    x1, y1, x2, y2 = bbox
+    cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
+    cv2.putText(img, label, (x1, max(18, y1 - 6)),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2, cv2.LINE_AA)
 
 
 def draw_debug(frame, bev_frame, lane_obs: LaneObservation, traffic_obs: TrafficLightObservation) -> np.ndarray:
     """A/B/C/D 인식 결과를 3행 2열 패널 하나로 합성.
-    주의: 이번 프레임에 대해 detect_lane_lines()/detect_traffic_light()를 먼저
-    호출한 뒤에 불러야 한다 (마스크/신호등 스캔 원본을 _last_debug 캐시에서 읽음)."""
+    주의: 이번 프레임에 대해 detect_lane_lines()/detect_red()를 먼저 호출한 뒤에
+    불러야 한다 (마스크 원본을 _last_debug 캐시에서 읽음)."""
     h, w = frame.shape[:2]
 
     # ---- 1행 좌: 원본 + ROI 사다리꼴 (A) ----
@@ -870,33 +674,25 @@ def draw_debug(frame, bev_frame, lane_obs: LaneObservation, traffic_obs: Traffic
     yellow_vis = cv2.cvtColor(yellow_mask, cv2.COLOR_GRAY2BGR) if yellow_mask is not None else np.zeros_like(frame)
     cv2.putText(yellow_vis, "C: YELLOW MASK", (12, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 255), 2)
 
-    # ---- 3행 좌: 신호등 ROI + 후보 박스 (D) ----
-    scan = _last_debug.get("traffic_scan")
-    if scan is not None:
-        tl_vis = scan["roi"].copy()
-        locked_bbox = _last_debug.get("traffic_locked_bbox")
-        if locked_bbox is not None:
-            mx1, my1, mx2, my2 = _lock_region_bounds(tl_vis.shape[:2], locked_bbox)
-            cv2.rectangle(tl_vis, (mx1, my1), (mx2, my2), (0, 255, 255), 2)
-            cv2.putText(tl_vis, "LOCKED", (mx1, max(18, my1 - 6)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 255), 1, cv2.LINE_AA)
-        _draw_traffic_candidate(tl_vis, scan["red_candidate"], (0, 0, 255), "RED")
-        _draw_traffic_candidate(tl_vis, scan["green_candidate"], (0, 255, 0), "GREEN")
+    # ---- 3행 좌: 신호등 ROI + 빨강 마스크 (D) ----
+    traffic_mask = _last_debug.get("traffic_mask")
+    if traffic_mask is not None:
+        tl_vis = cv2.cvtColor(traffic_mask, cv2.COLOR_GRAY2BGR)
+        _draw_red_bbox(tl_vis, traffic_obs.bbox, (0, 0, 255), "RED")
         tl_vis = cv2.resize(tl_vis, (w, h), interpolation=cv2.INTER_AREA)
     else:
         tl_vis = np.zeros_like(frame)
-    cv2.putText(tl_vis, "D: TRAFFIC LIGHT ROI", (12, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+    cv2.putText(tl_vis, "D: TRAFFIC LIGHT RED MASK", (12, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
     # ---- 3행 우: 텍스트 상태 패널 ----
     info = np.zeros_like(frame)
     lane_width = lane_obs.lane_width_px
-    lock_str = "LOCKED" if traffic_obs.locked else f"searching {traffic_obs.lock_streak}/{cfg.POSITION_LOCK_FRAMES}"
     lines = [
         f"[B] mode={lane_obs.mode}  confidence={lane_obs.confidence:.2f}",
         f"[B] lane_width_px={lane_width:.1f}" if lane_width is not None else "[B] lane_width_px=None",
         f"[C] yellow_points={len(lane_obs.yellow_points)}  path_len={len(lane_obs.yellow_path)}",
-        f"[D] red_score={traffic_obs.red_score:.2f}  green_score={traffic_obs.green_score:.2f}",
-        f"[D] lock={lock_str}",
+        f"[D] red_detected={traffic_obs.red_detected}  red_ratio={traffic_obs.red_ratio:.4f}",
+        f"[D] largest_area={traffic_obs.largest_area:.1f}  valid_frame={traffic_obs.valid_frame}",
     ]
     for i, text in enumerate(lines):
         cv2.putText(info, text, (18, 40 + i * 34), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
@@ -931,14 +727,13 @@ if __name__ == "__main__":
 
             bev, _M = warp_to_bev(frame)
             lane_obs = detect_lane_lines(bev)
-            traffic_obs = detect_traffic_light(frame)
+            traffic_obs = detect_red(frame)
             panel = draw_debug(frame, bev, lane_obs, traffic_obs)
 
             status = (
                 f"lane={lane_obs.mode} conf={lane_obs.confidence:.2f} "
                 f"yellow_pts={len(lane_obs.yellow_points)} "
-                f"tl_red={traffic_obs.red_score:.2f} tl_green={traffic_obs.green_score:.2f} "
-                f"tl_lock={'Y' if traffic_obs.locked else 'N'}"
+                f"tl_red={traffic_obs.red_detected} tl_ratio={traffic_obs.red_ratio:.4f}"
             )
             debug_view.update_web(panel, status)
 

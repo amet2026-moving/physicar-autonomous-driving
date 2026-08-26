@@ -52,14 +52,14 @@ def main():
 
     try:
         if cfg.ENABLE_TRAFFIC_LIGHT_WAIT:
-            traffic_judge.wait_for_green()   # 신호등 GREEN 확인될 때까지 블로킹 대기 (루프 시작 전 1회)
+            traffic_judge.wait_for_departure()   # RED가 나타났다 사라질 때까지 블로킹 대기 (루프 시작 전 1회)
 
         while True:
             t0 = time.time()   # 이번 프레임 처리 시작 시각 (처리시간/Hz 계산용)
 
             frame = car_api.camera()      # 원본 카메라 프레임 (BGR ndarray)
             if frame is None:
-                # 카메라 요청 실패(타임아웃/네트워크 순간끊김) -- wait_for_green()과
+                # 카메라 요청 실패(타임아웃/네트워크 순간끊김) -- wait_for_departure()와
                 # 같은 방식으로 정지 유지하고 다음 프레임을 재시도한다. 여기서 그냥
                 # 진행하면 frame.shape 접근에서 죽는다.
                 car_api.stop_vehicle()
@@ -94,7 +94,7 @@ def main():
 
             mode = modes.decide_mode(mode, lane_state, obstacle_state, avoid_status)   # 다음 프레임에 쓸 모드 결정
 
-            # 웹 디버그 뷰 갱신. 신호등은 wait_for_green()에서 루프 시작 전 1회만
+            # 웹 디버그 뷰 갱신. 신호등은 wait_for_departure()에서 루프 시작 전 1회만
             # 판정하므로(주행 중엔 다시 안 봄), camera.draw_debug()에는 빈 값을 넘겨서
             # D 패널이 게이트 통과 시점 상태로 고정 표시되게 한다 -- 매 프레임 신호등
             # ROI를 다시 스캔하는 불필요한 연산을 피하기 위함.
@@ -117,7 +117,7 @@ def main():
             if frame_n % 10 == 0:   # 매 프레임 출력하면 너무 많으므로 10프레임마다 한 줄만 출력
                 elapsed = time.time() - start_time
                 elapsed_str = f"{int(elapsed // 60):02d}:{elapsed % 60:04.1f}"   # 분:초.소수 형식
-                # 신호등은 루프 시작 전 wait_for_green()에서 딱 한 번만 판정됨 -- 여기서
+                # 신호등은 루프 시작 전 wait_for_departure()에서 딱 한 번만 판정됨 -- 여기서
                 # GREEN으로 찍는 건 "매 프레임 다시 확인 중"이 아니라 "게이트를 이미 통과했음"을 뜻함
                 logger.status_line(
                     elapsed_str, mode, TrafficLightState.GREEN, lane_state, obstacle_state,

@@ -91,43 +91,33 @@ DRIVE_CAMERA_PAN_DEG = 0.0         # 주행 중 카메라 pan(좌우) 고정 각
 DRIVE_CAMERA_TILT_DEG = 0.0        # 주행 중 카메라 tilt(상하) 고정 각도 (도, deg)
 CAMERA_SETTLE_SEC = 0.30           # 카메라 자세 명령 후 안정화 대기 시간 (초)
 
-FIXED_ROI_NORM = (0.60, 0.40, 0.98, 0.95)   # 신호등 탐색 고정 영역 (x1,y1,x2,y2, 정규화 좌표 0~1)
+FIXED_ROI_NORM = (0.55, 0.35, 0.98, 0.95)   # 신호등 탐색 고정 영역 (x1,y1,x2,y2, 정규화 좌표 0~1)
+
+NO_LOCK_TIMEOUT_SEC = 5.0          # RED를 한 번도 못 찾을 때 포기하고 강제 출발하기까지 대기 시간 (초)
 
 # ============================================================
-# 신호등: 위치 락(한 번 찾은 뒤 그 자리만 계속 봄)
+# 신호등: RED-LOCK 방식 (TTTTTT_physicar_ros2_red_lock_myapp.py 이식)
 # ============================================================
-POSITION_LOCK_FRAMES = 10          # 같은 위치로 볼 연속 프레임 수가 이만큼이면 위치 확정 (개)
-POSITION_MATCH_TOLERANCE_PX = 20   # '같은 위치'로 볼 중심좌표 오차 허용치 (px)
+# GREEN은 보지 않는다 -- RED가 RED_CONFIRM_SEC 동안 지속되면 그 순간의 위치+크기를
+# 락(lock)하고, 이후엔 그 락된 패치 안에서만 RED가 사라졌는지 본다(다른 곳의 빨간
+# 반사광/노이즈에 흔들리지 않기 위함). 락된 패치 안 RED가 RED_RELEASE_SEC 동안
+# 사라진 채로 유지되면 출발. decision/traffic_judge.py의 _RedLockGate가 사용.
+TRAFFIC_RED_LOW_1 = (0, 100, 100)      # HSV 빨강 구간 1 하한 (Hue 0 부근)
+TRAFFIC_RED_HIGH_1 = (10, 255, 255)    # HSV 빨강 구간 1 상한
+TRAFFIC_RED_LOW_2 = (170, 100, 100)    # HSV 빨강 구간 2 하한 (Hue 180 부근, 색상환 반대쪽 랩어라운드)
+TRAFFIC_RED_HIGH_2 = (179, 255, 255)   # HSV 빨강 구간 2 상한
 
-POSITION_LOCK_MARGIN_TOP_PX = 15     # 락 영역 위쪽 확장 여백 (px)
-POSITION_LOCK_MARGIN_BOTTOM_PX = 70  # 락 영역 아래쪽 확장 여백 (px) -- RED 아래 GREEN이 켜지는 경우까지 포함
-POSITION_LOCK_MARGIN_LEFT_PX = 15    # 락 영역 왼쪽 확장 여백 (px)
-POSITION_LOCK_MARGIN_RIGHT_PX = 15   # 락 영역 오른쪽 확장 여백 (px)
+TRAFFIC_RED_MIN_AREA = 20.0        # 빨강으로 볼 최소 컨투어 면적 (px^2)
+TRAFFIC_RED_MIN_RATIO = 0.0010     # 빨강으로 볼 최소 픽셀 비율 (검사 영역 대비, 0~1)
+TRAFFIC_MIN_ROI_MEAN_V = 20.0      # 유효 프레임으로 볼 최소 평균 명도 (0~255, 너무 어두우면 무효)
+TRAFFIC_MORPH_KERNEL_SIZE = 3      # 마스크 노이즈 제거(open/close) 커널 크기 (px)
 
-POSITION_LOCK_LOST_SEC = 2.0       # 락 영역에서 후보가 안 보일 때 락을 풀기까지 대기 시간 (초)
-NO_LOCK_TIMEOUT_SEC = 5.0          # 신호등을 아예 못 찾을 때 포기하고 강제 출발하기까지 대기 시간 (초)
+TRAFFIC_RED_CONFIRM_SEC = 0.25     # RED를 이 시간 이상 연속 확인해야 락을 건다 (초)
+TRAFFIC_RED_RELEASE_SEC = 0.35     # 락된 패치에서 RED가 이 시간 이상 사라져 있어야 출발 (초)
 
-# ============================================================
-# 신호등: 색상/블롭(덩어리) 채점
-# ============================================================
-TRAFFIC_LIT_V_MIN = 170            # '불이 켜졌다'고 볼 최소 명도 (Value, 0~255, 색상과 무관)
-TRAFFIC_COLOR_RANK_MARGIN = 12     # R-G(또는 G-R) 채널 차이 최소값 (0~255) -- 이 이상이어야 그 색으로 판정
-
-TRAFFIC_MIN_BLOB_AREA_RATIO = 0.00005  # 신호등 후보 최소 면적 비율 (전체 이미지 대비, 0~1)
-TRAFFIC_MAX_BLOB_AREA_RATIO = 0.45     # 신호등 후보 최대 면적 비율 (전체 이미지 대비, 0~1)
-TRAFFIC_MIN_BBOX_FILL = 0.38           # 바운딩박스 대비 채워진 비율 최소값 (0~1) -- 둥근 형태 요구
-TRAFFIC_MIN_CIRCULARITY = 0.28         # 최소 원형도 (0~1, 1일수록 완전한 원)
-TRAFFIC_EDGE_MARGIN_PX = 3             # 화면 경계 제외 여백 (px) -- 경계에 걸친 후보는 제거
-
-TRAFFIC_DARK_V_MAX = 120           # 신호등 하우징(몸체)으로 볼 최대 명도 (0~255)
-TRAFFIC_DARK_EXPAND = 2.1          # 색상 후보 대비 하우징 확인 영역 확장 배율 (배수)
-TRAFFIC_MIN_DARK_SURROUND_RATIO = 0.18  # 후보 주변이 어두운 하우징이어야 하는 최소 비율 (0~1)
-TRAFFIC_MIN_RING_PIXELS = 30       # 하우징 판정에 필요한 최소 어두운 픽셀 수 (개)
-
-# ============================================================
-# 신호등: RED/GREEN/UNKNOWN 최종 판정 (decision/traffic_judge.py에서 사용)
-# ============================================================
-TRAFFIC_SCORE_MIN = 0.42               # RED/GREEN으로 인정할 최소 종합 점수 (0~1)
-TRAFFIC_GREEN_OVER_RED_MARGIN = 0.18   # GREEN 확정에 필요한 GREEN점수-RED점수 최소 차이 (0~1)
-GREEN_CONFIRM_FRAMES = 3               # GREEN을 몇 프레임 연속 확인해야 출발 결정할지 (개)
-RED_CLEAR_DEPART_SEC = 0.5             # RED가 사라진 뒤 출발까지 대기 시간 (초)
+TRAFFIC_LOCK_PADDING_PX = 10           # 락 영역 확장 여백 최소값 (px)
+TRAFFIC_LOCK_PADDING_RATIO = 0.60      # 락 영역 확장 여백 비율 (컨투어 bbox 크기 대비)
+TRAFFIC_LOCK_RETAIN_AREA_RATIO = 0.18  # 락 후 "여전히 RED"로 볼 최소 면적 비율 (락 당시 면적 대비)
+TRAFFIC_LOCK_RETAIN_PIXEL_RATIO = 0.12 # 락 후 "여전히 RED"로 볼 최소 픽셀수 비율 (락 당시 픽셀수 대비)
+TRAFFIC_LOCK_MIN_RED_AREA = 8.0        # 락 판정 최소 면적 하한 (px^2, 비율 계산과 무관하게 적용되는 바닥값)
+TRAFFIC_LOCK_MIN_RED_PIXELS = 12       # 락 판정 최소 픽셀수 하한 (개, 비율 계산과 무관하게 적용되는 바닥값)
