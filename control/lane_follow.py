@@ -56,9 +56,12 @@ def steer_with_offset(lane_obs, near_offset_px, far_offset_px):
 
 def _corner_target(lane_obs):
     """노란 경로 위 전방주시(lookahead) 목표점 -- 차량 위치(BEV 하단 중앙)에서
-    CORNER_LOOKAHEAD_PX만큼 누적거리 이동한 지점. 노란 경로 없으면 None."""
+    CORNER_LOOKAHEAD_PX만큼 누적거리 이동한 지점. 노란 경로 점이
+    CORNER_PATH_MIN_POINTS 미만이면 None -- 코너에 막 진입해 점 1개짜리 경로만
+    보일 때는 그 점 하나의 좌우 위치가 노이즈 수준이라, 방향을 잘못 잡아 순간적으로
+    반대쪽(예: 왼쪽 코너인데 오른쪽)으로 튀는 원인이 된다."""
     path = lane_obs.yellow_path
-    if not path:
+    if len(path) < cfg.CORNER_PATH_MIN_POINTS:
         return None
 
     w, h = lane_obs.bev_w, lane_obs.bev_h

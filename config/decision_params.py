@@ -19,7 +19,10 @@ CORNER_EXIT_CURVATURE_PX = 40.0    # 이 이하로 떨어져야 코너 이탈
 # ============================================================
 # 장애물 반응 거리
 # ============================================================
-# 이 거리(m) 이내에 콘이 있을 때만 CLEAR가 아닌 LEFT/RIGHT로 판정한다 --
-# fusion.classify_obstacle_side()는 거리와 무관하게 형상만 맞으면 방향을
-# 돌려주므로, "실제로 반응할 만큼 가까운가"는 여기서 별도로 건다.
-OBSTACLE_REACT_RANGE_M = 1.10
+# 이 거리(m) 이내에 콘이 있을 때만 CLEAR가 아닌 BLOCKED로 판정한다 --
+# fusion.classify_obstacle_side()는 거리와 무관하게 형상+코리도 내부 여부만 맞으면
+# IN_CORRIDOR를 돌려주므로, "실제로 반응할 만큼 가까운가"는 여기서 별도로 건다.
+# control_params.RAW_SHIELD_BRAKE_X_M(1.30m, 회피 오프셋이 실제로 커지기 시작하는
+# 거리)보다 약간 더 멀리서 OBSTACLE_AVOID 모드로 먼저 전환되게 해서(1.45m), 모드
+# 전환 자체가 오프셋 램프업보다 늦어지는 일이 없게 한다.
+OBSTACLE_REACT_RANGE_M = 1.45
