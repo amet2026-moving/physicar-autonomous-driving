@@ -68,6 +68,14 @@ YELLOW_MAX_AREA = 5000             # 노란 점으로 인정할 최대 면적 (p
 ASPHALT_V_MAX = 175                # 노란색 후보 주변이 아스팔트여야 하는 최대 명도 (0~255)
 ASPHALT_DILATE = 17                # 노란색 후보 주변 아스팔트 판정 팽창 커널 크기 (px)
 
+# 노란 점이 이 개수 미만이면 LaneTracker.detect()가 코리도 오른쪽 경계(yellow_near/
+# yellow_far)로 신뢰하지 않는다. 점 1개짜리는 near/far가 항상 같은 값으로 보간되어
+# (np.interp가 점 1개면 상수를 반환) 코너 진입 직전처럼 노이즈에 민감한 순간에
+# center_near/far를 엉뚱한 방향으로 끌고 갈 수 있다 -- control_params.
+# CORNER_PATH_MIN_POINTS와 같은 이유, 다만 이건 STRAIGHT 상태에서도 매 프레임
+# 도는 Stanley 조향(center_near/far) 쪽 게이트.
+YELLOW_CORRIDOR_MIN_POINTS = 2
+
 # ============================================================
 # 노란색 점 -> 경로 연결 (체이닝 기하값. "어디를 목표점으로 볼지"는
 # control_params.py의 CORNER_LOOKAHEAD_PX -- 그건 제어 판단이라 여기 안 둠)

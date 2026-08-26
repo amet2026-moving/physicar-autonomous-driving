@@ -277,7 +277,9 @@ class LaneTracker:
     경계일 뿐, 지금 달리는 코리도의 경계가 아니기 때문.
     한쪽만 보여도 지난 코리도 폭(EMA) 기억으로 반대쪽 경계를 추정한다
     (LEFT_ONLY/YELLOW_ONLY). 노란선 x좌표는 C 섹션이 만든 yellow_path를
-    _yellow_x_at_row()로 y_near/y_far에서 보간해서 얻는다."""
+    _yellow_x_at_row()로 y_near/y_far에서 보간해서 얻는다 -- 단, 점이
+    YELLOW_CORRIDOR_MIN_POINTS 미만이면(점 1개는 near/far가 항상 같은 값으로
+    보간돼 노이즈에 취약) 아예 안 본 것으로 치고 LEFT_ONLY 폴백으로 넘어간다."""
 
     def __init__(self):
         self.lane_width_px = None   # 코리도 폭 EMA (BEV px, 왼쪽흰선~노란선), 처음엔 미지
@@ -291,8 +293,14 @@ class LaneTracker:
         right_fit, right_count = sliding_window_fit(mask, "right")   # 디버그 시각화 전용
 
         left_near, left_far = fit_x(left_fit, y_near), fit_x(left_fit, y_far)
-        yellow_near = _yellow_x_at_row(yellow_path, y_near)
-        yellow_far = _yellow_x_at_row(yellow_path, y_far)
+
+        # 점이 YELLOW_CORRIDOR_MIN_POINTS 미만이면 아예 안 본 것으로 취급한다.
+        # 점 1개짜리는 near/far 보간이 항상 같은 값(np.interp가 점 하나면 상수를
+        # 반환)이라, 코너 진입 직전처럼 노란 점이 막 나타나기 시작하는 노이즈에
+        # 민감한 순간에 center_near/far를 엉뚱한 방향으로 끌고 갈 수 있다.
+        has_reliable_yellow = len(yellow_path or []) >= cfg.YELLOW_CORRIDOR_MIN_POINTS
+        yellow_near = _yellow_x_at_row(yellow_path, y_near) if has_reliable_yellow else None
+        yellow_far = _yellow_x_at_row(yellow_path, y_far) if has_reliable_yellow else None
 
         both = (
             left_near is not None and yellow_near is not None

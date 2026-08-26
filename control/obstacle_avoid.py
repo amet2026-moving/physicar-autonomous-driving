@@ -109,7 +109,11 @@ class ObstacleAvoidController:
 
         lane_width_px = lane_obs.lane_width_px or 0.0
         offset_px = self.offset_ratio * lane_width_px
-        steer = lane_follow.steer_with_offset(lane_obs, offset_px, offset_px)
+        # far 쪽에 더 큰 오프셋을 줘서 헤딩 오차(K_HEADING)까지 쓰게 만든다 -- near==far로
+        # 주면 Stanley의 heading_error에서 오프셋이 상쇄돼 lateral_error(K_LATERAL)만
+        # 남아 회피 조향이 코너보다 훨씬 약해진다(config.control_params.
+        # AVOID_FAR_OFFSET_BOOST 참고).
+        steer = lane_follow.steer_with_offset(lane_obs, offset_px, offset_px * cfg.AVOID_FAR_OFFSET_BOOST)
         if steer is None:
             steer = 0.0   # 차선 정보 자체가 없어도 정지는 안 함 -- 직진 유지
 
