@@ -13,17 +13,29 @@ K_HEADING = 40.0             # Stanley 헤딩 오차 게인 (무차원)
 STEER_ALPHA = 0.55           # 최종 조향 출력 EMA 스무딩 계수 (0~1, 클수록 최근값 반영 큼)
 CORNER_STEER_ALPHA = 0.72    # 코너 활성 중 조향 EMA 스무딩 계수 (0~1)
 
+# 직선 구간에서 mode=="YELLOW_ONLY"(왼쪽 흰선이 카메라 시야를 벗어나 노란선만 보임)일
+# 때, 코리도 폭(lane_obs.lane_width_px) 대비 목표 중심점을 얼마나 오른쪽으로 미는지.
+# 왼쪽 흰선이 사라지는 건 대개 차가 코리도 중심보다 너무 왼쪽에 붙어서라, 살짝
+# 오른쪽으로 붙여 흰선이 다시 시야에 들어오게 유도한다. 회피용 AVOID_FULL_OFFSET_RATIO
+# (1.05, 반대 차로까지 건너감)보다 훨씬 작게 잡음 -- 이건 차로 변경이 아니라 미세
+# 보정이므로. 실차 확인 후 재조정할 것.
+YELLOW_ONLY_SEARCH_OFFSET_RATIO = 0.20
+
 # ============================================================
 # 속도 계획
 # ============================================================
-SPEED_MIN = 0.30              # 커브 구간 최저 속도 (m/s)
-# 직선 구간 최고 속도 (m/s). 0.75 -> 0.9로 올림(실차 요청, 2.0은 과해서 보류) --
-# 그래도 빨라진 만큼 장애물까지 도달하는 시간이 짧아지므로, 회피 반응거리/EMA
-# 속도도 같이 올렸다(RAW_SHIELD_BRAKE_X_M, AVOID_OFFSET_ALPHA, decision_params.
-# OBSTACLE_REACT_RANGE_M 참고) -- 속도만 올리면 회피가 더 늦어 보이는 역효과가 남.
-SPEED_MAX = 0.9
-SPEED_ONE_LINE = 0.40         # 차선 한쪽만 인식될 때 속도 (m/s)
-YELLOW_GUIDE_SPEED = 0.28     # 흰선 약함 + 노란선 폴백 추종 중 속도 (m/s)
+# 아래 속도 상수들은 전반적으로 체감 속도가 느리다는 실차 피드백에 따라 전부
+# 20% 일괄 인상했다(가속/감속 램프인 SPEED_RAMP_UP/DOWN과 하드웨어 한계인
+# STEER_MAX는 "속도"가 아니므로 대상에서 제외).
+SPEED_MIN = 0.36              # 커브 구간 최저 속도 (m/s)
+# 직선 구간 최고 속도 (m/s). 0.75 -> 0.9로 올렸던 것(실차 요청, 2.0은 과해서 보류)을
+# 이번에 다시 20% 인상. 빨라진 만큼 장애물까지 도달하는 시간이 짧아지므로, 회피
+# 반응거리/EMA 속도도 같이 올려뒀다(RAW_SHIELD_BRAKE_X_M, AVOID_OFFSET_ALPHA,
+# decision_params.OBSTACLE_REACT_RANGE_M 참고) -- 속도만 올리면 회피가 더 늦어
+# 보이는 역효과가 남.
+SPEED_MAX = 1.08
+SPEED_ONE_LINE = 0.48         # 차선 한쪽만 인식될 때 속도 (m/s)
+YELLOW_GUIDE_SPEED = 0.34     # 흰선 약함 + 노란선 폴백 추종 중 속도 (m/s)
 
 SPEED_RAMP_UP = 0.20          # 프레임당 최대 가속량 (m/s)
 SPEED_RAMP_DOWN = 0.06        # 프레임당 최대 감속량 (m/s) -- 감속은 보수적으로 작게
@@ -52,8 +64,8 @@ CORNER_WEAK_WHITE_CONFIRM_FRAMES = 2    # 흰선약함+코너 조건 확정에 �
 CORNER_OPPOSITE_SIGN_MIN_DEG = 3.0        # 반대부호 조향으로 볼 최소 각도 (도) -- 노이즈성 부호반전 방지
 CORNER_OPPOSITE_SIGN_CONFIRM_FRAMES = 3   # 반대부호를 진짜 경로변경으로 인정할 연속 프레임 수 (개)
 
-SPEED_CORNER = 0.36        # 코너 진입 직후 속도 (m/s)
-SPEED_CORNER_HOLD = 0.28   # 코너 중 노란경로가 잠깐 사라졌을 때 유지 속도 (m/s)
+SPEED_CORNER = 0.43        # 코너 진입 직후 속도 (m/s)
+SPEED_CORNER_HOLD = 0.34   # 코너 중 노란경로가 잠깐 사라졌을 때 유지 속도 (m/s)
 
 # ============================================================
 # 코너 경로 추종 (노란 점선 중앙선)
@@ -67,11 +79,11 @@ CORNER_STEER_GAIN = 0.44         # 코너 목표각 -> 조향각 변환 게인 (
 CORNER_MEDIUM_STEER_DEG = 8.5    # '중간 코너'로 분류할 조향각 기준 (도)
 CORNER_HARD_STEER_DEG = 12.5     # '급코너'로 분류할 조향각 기준 (도)
 
-SPEED_CORNER_GENTLE_MIN = 0.40   # 완만한 코너 최저 속도 (m/s)
-SPEED_CORNER_MEDIUM_MIN = 0.36   # 중간 코너 최저 속도 (m/s)
-SPEED_CORNER_MEDIUM_MAX = 0.40   # 중간 코너 최고 속도 (m/s)
-SPEED_CORNER_HARD_MIN = 0.32     # 급코너 최저 속도 (m/s)
-SPEED_CORNER_HARD_MAX = 0.34     # 급코너 최고 속도 (m/s)
+SPEED_CORNER_GENTLE_MIN = 0.48   # 완만한 코너 최저 속도 (m/s)
+SPEED_CORNER_MEDIUM_MIN = 0.43   # 중간 코너 최저 속도 (m/s)
+SPEED_CORNER_MEDIUM_MAX = 0.48   # 중간 코너 최고 속도 (m/s)
+SPEED_CORNER_HARD_MIN = 0.38     # 급코너 최저 속도 (m/s)
+SPEED_CORNER_HARD_MAX = 0.41     # 급코너 최고 속도 (m/s)
 
 CORNER_HOLD_FRAMES = 12   # 노란 경로가 사라져도 마지막 코너 조향을 유지할 프레임 수 (개)
 
@@ -81,12 +93,12 @@ REAL_CORNER_MEMORY_MIN_DEG = 10.0         # 코너 메모리 클리핑 하한 (�
 REAL_CORNER_MEMORY_MAX_DEG = 14.0         # 코너 메모리 클리핑 상한 (도)
 REAL_CORNER_SPEED_ALPHA = 0.78            # 코너 속도 EMA 스무딩 계수 (0~1)
 
-REAL_CORNER_ACTIVE_MAX_SPEED = 0.50                 # 코너 활성 중 최고 속도 (m/s)
-REAL_CORNER_FALLBACK_ONE_LINE_MAX_SPEED = 0.34      # 코너+한쪽 차선만 인식될 때 최고 속도 (m/s)
-REAL_CORNER_FALLBACK_BOTH_MAX_SPEED = 0.40          # 코너+양쪽 차선 인식될 때 최고 속도 (m/s)
+REAL_CORNER_ACTIVE_MAX_SPEED = 0.60                 # 코너 활성 중 최고 속도 (m/s)
+REAL_CORNER_FALLBACK_ONE_LINE_MAX_SPEED = 0.41      # 코너+한쪽 차선만 인식될 때 최고 속도 (m/s)
+REAL_CORNER_FALLBACK_BOTH_MAX_SPEED = 0.48          # 코너+양쪽 차선 인식될 때 최고 속도 (m/s)
 
 CORNER_FALLBACK_STEER_STEP_DEG = 3.0   # 코너 폴백 조향 변화량 한도 (도/프레임)
-SPEED_CORNER_FALLBACK = 0.46           # 코너 폴백 속도 (m/s)
+SPEED_CORNER_FALLBACK = 0.55           # 코너 폴백 속도 (m/s)
 
 # ============================================================
 # 장애물 회피 (연속함수 방식 -- control/obstacle_avoid.py 참고)
@@ -117,11 +129,11 @@ AVOID_OFFSET_ALPHA = 0.35
 AVOID_OFFSET_DONE_RATIO = 0.018  # 오프셋이 이 비율 이하로 줄면 '복귀 완료'로 판정 (0~1)
 
 AVOID_PASS_X_M = 0.10        # 이 거리(전후) 이내를 "바로 옆을 지나는 구간"으로 보고 회피량을 최대로 유지
-# 회피 중일 때(아직 크게 안 피한 상태) 속도 상한 (m/s). SPEED_MAX(0.9)보다 뚜렷하게
+# 회피 중일 때(아직 크게 안 피한 상태) 속도 상한 (m/s). SPEED_MAX(1.08)보다 뚜렷하게
 # 낮게 유지해야 회피 모드에 들어가는 순간 항상 감속이 걸린다 -- SPEED_MAX와 같은
-# 값이면(예: 둘 다 0.9) 회피 시작부터 옆으로 빠지는 조작 중에 감속이 전혀 안 걸림.
-AVOID_CRUISE_SPEED = 0.65
-AVOID_EMERGENCY_SPEED = 0.18 # 회피량이 최대일 때 속도 하한 (m/s) -- 정지/후진 없음, 이 아래로는 안 내려감
+# 값이면 회피 시작부터 옆으로 빠지는 조작 중에 감속이 전혀 안 걸림.
+AVOID_CRUISE_SPEED = 0.78
+AVOID_EMERGENCY_SPEED = 0.22 # 회피량이 최대일 때 속도 하한 (m/s) -- 정지/후진 없음, 이 아래로는 안 내려감
 
 # ============================================================
 # 원시 충돌 감지 (콘으로 확정되지 않은 물체도 전방 근접이면 회피방향을 잡는 보강채널)

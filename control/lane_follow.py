@@ -167,9 +167,20 @@ class _LaneFollowController:
             alpha = cfg.STEER_ALPHA
 
             if stanley_steer is not None:
-                raw_steer = stanley_steer
-                self.last_corner_steering = stanley_steer
-                target_speed = _straight_speed(lane_obs, stanley_steer, heading_error)
+                if lane_obs.mode == "YELLOW_ONLY" and lane_obs.lane_width_px:
+                    # 왼쪽 흰선이 카메라 시야를 벗어나 노란선만 보이는 상태 -- 대개
+                    # 차가 코리도 중심보다 너무 왼쪽에 붙어서 그런 것이므로, 목표
+                    # 중심점을 살짝 오른쪽으로 옮겨 흰선이 다시 시야에 들어오도록
+                    # 유도한다. near==far로 같은 오프셋을 주므로(회피 때와 달리)
+                    # 헤딩 성분은 안 섞이고 순수 횡오차만 온건하게 더해진다.
+                    search_offset_px = lane_obs.lane_width_px * cfg.YELLOW_ONLY_SEARCH_OFFSET_RATIO
+                    raw_steer = steer_with_offset(lane_obs, search_offset_px, search_offset_px)
+                    if raw_steer is None:
+                        raw_steer = stanley_steer
+                else:
+                    raw_steer = stanley_steer
+                self.last_corner_steering = raw_steer
+                target_speed = _straight_speed(lane_obs, raw_steer, heading_error)
             else:
                 # OFF_TRACK -- 정지/후진 없이 마지막 조향을 유지한 채 서행한다.
                 raw_steer = self.smoothed_steer
