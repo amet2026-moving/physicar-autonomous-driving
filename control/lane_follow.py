@@ -233,3 +233,12 @@ _controller = _LaneFollowController()
 def compute(lane_obs, lane_state, current_speed: float) -> tuple[float, float]:
     """차선 인식 결과 + 현재 속도로 (조향각(도), 속도(m/s))를 계산해서 반환."""
     return _controller.compute(lane_obs, lane_state, current_speed)
+
+
+def sync_steer(steer: float) -> None:
+    """VehicleMode.OBSTACLE_AVOID 중에는 compute()가 아예 호출되지 않아 조향 EMA가
+    회피 시작 전 값에 멈춰있게 된다 -- 회피가 끝나고 복귀하는 순간 그 오래된 값에서부터
+    다시 스무딩을 시작하면 잠깐 어긋난다. main.py가 회피 중에도 매 프레임 이걸 불러
+    EMA가 실제 조향을 계속 따라가게 해서, 복귀가 이어지게 한다."""
+    _controller.smoothed_steer = steer
+    _controller.last_corner_steering = steer

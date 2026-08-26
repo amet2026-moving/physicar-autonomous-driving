@@ -58,6 +58,14 @@ def main():
             t0 = time.time()   # 이번 프레임 처리 시작 시각 (처리시간/Hz 계산용)
 
             frame = car_api.camera()      # 원본 카메라 프레임 (BGR ndarray)
+            if frame is None:
+                # 카메라 요청 실패(타임아웃/네트워크 순간끊김) -- wait_for_green()과
+                # 같은 방식으로 정지 유지하고 다음 프레임을 재시도한다. 여기서 그냥
+                # 진행하면 frame.shape 접근에서 죽는다.
+                car_api.stop_vehicle()
+                time.sleep(0.10)
+                continue
+
             scan = lidar.capture_scan()   # 원시 라이다 스캔
 
             bev_frame, _ = camera.warp_to_bev(frame)          # 원근변환으로 위에서 내려다본 이미지로 변환
@@ -77,10 +85,27 @@ def main():
                 steer, current_speed, avoid_status = avoid_ctrl.step(
                     obstacle_state, fusion_result, clusters, lane_obs,
                 )
+                # lane_follow의 조향 EMA를 계속 동기화해둔다 -- 안 하면 회피 끝나고
+                # LANE_FOLLOW로 복귀할 때 회피 시작 전의 오래된 값에서부터 다시
+                # 스무딩을 시작하게 되어 복귀 순간 조향이 잠깐 어긋난다.
+                lane_follow.sync_steer(steer)
             else:
                 steer, current_speed = lane_follow.compute(lane_obs, lane_state, current_speed)
 
             mode = modes.decide_mode(mode, lane_state, obstacle_state, avoid_status)   # 다음 프레임에 쓸 모드 결정
+
+            # 웹 디버그 뷰 갱신. 신호등은 wait_for_green()에서 루프 시작 전 1회만
+            # 판정하므로(주행 중엔 다시 안 봄), camera.draw_debug()에는 빈 값을 넘겨서
+            # D 패널이 게이트 통과 시점 상태로 고정 표시되게 한다 -- 매 프레임 신호등
+            # ROI를 다시 스캔하는 불필요한 연산을 피하기 위함.
+            camera_panel = camera.draw_debug(frame, bev_frame, lane_obs, camera.TrafficLightObservation())
+            lidar_panel = lidar.draw_debug(clusters)
+            fusion_panel = fusion.draw_debug(bev_frame, lane_obs, clusters, fusion_result)
+            debug_view.update_web(
+                debug_view.build_panel(camera_panel, lidar_panel, fusion_panel),
+                f"MODE={mode.value} lane={lane_state.value} obstacle={obstacle_state.value} "
+                f"steer={steer:+.1f} speed={current_speed:.2f}",
+            )
 
             if cfg.DRIVE_ENABLED:
                 car_api.drive(current_speed, steer)   # 실제 조향/속도 명령 전송 (speed: m/s, steer: 도)

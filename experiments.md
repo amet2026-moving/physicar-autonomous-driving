@@ -28,5 +28,5 @@ run_id만 남겨서 결과와 전체 로그를 서로 연결할 수 있게 한�
 - [ ] `control/obstacle_avoid.py` -- 회피 컨트롤러
 - [ ] `control/recovery.py` -- 후진/재확인 컨트롤러
 - [ ] `control/modes.py` -- VehicleMode 전이 규칙
-- [ ] `myapp/debug_view.py` build_panel() -- 통합 시각화
+- [x] `myapp/debug_view.py` build_panel() -- camera/lidar/fusion draw_debug() 3개를 세로로 합성, main.py 주행 루프에서 매 프레임 update_web() 호출
 - [ ] `utils/rosbag_record.py` / `rosbag_replay.py`

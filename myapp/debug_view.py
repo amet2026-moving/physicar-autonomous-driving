@@ -29,9 +29,20 @@ _server = [None]          # 실행 중인 werkzeug 서버 인스턴스
 
 
 def build_panel(camera_debug, lidar_debug, fusion_debug) -> np.ndarray:
-    """TODO: sensors/camera.py, sensors/lidar.py, sensors/fusion.py가 만들어질 때까지
-    미구현. 각 센서 모듈의 디버그 이미지를 하나의 패널로 합성해서 반환할 자리."""
-    raise NotImplementedError
+    """camera.draw_debug()/lidar.draw_debug()/fusion.draw_debug()가 각자 만든, 이미
+    완결된 디버그 이미지 3개를 받아 하나로 합친다. 세 패널은 종횡비가 서로 달라서
+    (camera: 3행2열 그리드, lidar: 정사각형 레이더뷰, fusion: 가로 3분할) 폭을
+    camera_debug 기준으로 맞추고 세로로 이어붙인다."""
+    target_w = camera_debug.shape[1]
+
+    def _fit_width(img):
+        h, w = img.shape[:2]
+        if w == target_w:
+            return img
+        scale = target_w / w
+        return cv2.resize(img, (target_w, max(1, int(h * scale))), interpolation=cv2.INTER_AREA)
+
+    return np.vstack([camera_debug, _fit_width(lidar_debug), _fit_width(fusion_debug)])
 
 
 def update_web(panel: np.ndarray, status: str) -> None:
