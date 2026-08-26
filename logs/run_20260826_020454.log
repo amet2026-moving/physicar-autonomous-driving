@@ -1,0 +1,54 @@
+[LOG] saving to /home/physicar/physicar_ws/moving/logs/run_20260826_020454.log
+[WEB] debug view started on http://localhost:5000
+========================================================================
+PhysiCar autonomous driving
+DRIVE_ENABLED = True
+Ctrl+C to stop.
+========================================================================
+[TRAFFIC] fixed-ROI start gate active (ROI=(0.6, 0.4, 0.98, 0.95)); vehicle STOPPED; locking position...
+[TRAFFIC] state=LOCKING lock=NO(1/10) green=0/3 red_cleared=-     red_score=0.000 green_score=0.660
+[TRAFFIC] DEPART -- reason=GREEN_CONFIRMED
+[lidar] subscribed to /scan
+[00:03.0] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  +0.4 speed= 0.66  13.0Hz
+[00:03.9] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  -0.4 speed= 0.75   9.3Hz
+[00:05.0] MODE=LANE_FOLLOW     light=GREEN    lane=CORNER     obstacle=CLEAR  steer= +15.1 speed= 0.39   8.5Hz
+[00:05.9] MODE=LANE_FOLLOW     light=GREEN    lane=CORNER     obstacle=CLEAR  steer= +20.0 speed= 0.34  11.4Hz
+[00:06.9] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  +7.4 speed= 0.34  11.6Hz
+[00:08.0] MODE=LANE_FOLLOW     light=GREEN    lane=CORNER     obstacle=CLEAR  steer=  +6.9 speed= 0.32   7.8Hz
+[00:09.1] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  +5.8 speed= 0.34   7.4Hz
+[00:10.2] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  +2.4 speed= 0.34   9.2Hz
+[00:11.1] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  +1.9 speed= 0.34  15.9Hz
+[00:12.1] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  +1.5 speed= 0.34   7.7Hz
+[00:13.2] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  +0.3 speed= 0.40  12.5Hz
+[00:14.2] MODE=LANE_FOLLOW     light=GREEN    lane=CORNER     obstacle=CLEAR  steer=  -3.2 speed= 0.65  10.2Hz
+[00:15.2] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  +0.3 speed= 0.67   8.4Hz
+[00:16.2] MODE=LANE_FOLLOW     light=GREEN    lane=CORNER     obstacle=CLEAR  steer=  -9.6 speed= 0.69   9.8Hz
+[00:17.2] MODE=LANE_FOLLOW     light=GREEN    lane=CORNER     obstacle=CLEAR  steer= +20.0 speed= 0.32  16.7Hz
+[00:18.2] MODE=LANE_FOLLOW     light=GREEN    lane=CORNER     obstacle=CLEAR  steer= +20.0 speed= 0.32   9.3Hz
+[00:19.2] MODE=LANE_FOLLOW     light=GREEN    lane=CORNER     obstacle=CLEAR  steer=  +3.4 speed= 0.32   9.7Hz
+[00:20.2] MODE=LANE_FOLLOW     light=GREEN    lane=CORNER     obstacle=CLEAR  steer= +11.1 speed= 0.34   5.9Hz
+[00:21.3] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  +5.3 speed= 0.34  10.8Hz
+[00:22.3] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  -0.0 speed= 0.69  10.0Hz
+[00:23.5] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  +1.3 speed= 0.75   9.4Hz
+[00:24.4] MODE=LANE_FOLLOW     light=GREEN    lane=CORNER     obstacle=CLEAR  steer= +19.8 speed= 0.32  11.9Hz
+[00:25.3] MODE=LANE_FOLLOW     light=GREEN    lane=CORNER     obstacle=CLEAR  steer= +20.0 speed= 0.34  12.1Hz
+[00:26.3] MODE=LANE_FOLLOW     light=GREEN    lane=CORNER     obstacle=CLEAR  steer= +20.0 speed= 0.34   7.7Hz
+[00:27.3] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  +3.5 speed= 0.75   6.4Hz
+[00:28.3] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  -0.7 speed= 0.75  10.5Hz
+[00:29.2] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  -0.3 speed= 0.75  12.3Hz
+[00:30.1] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  -0.2 speed= 0.75  12.5Hz
+[00:31.0] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  -0.1 speed= 0.75  13.2Hz
+[00:32.0] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  -0.0 speed= 0.75  10.4Hz
+[00:33.0] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  -0.0 speed= 0.75  13.5Hz
+[00:34.0] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  -0.0 speed= 0.75  12.2Hz
+[00:35.0] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  -0.0 speed= 0.75   9.3Hz
+[00:36.0] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  -0.0 speed= 0.75  12.4Hz
+[00:36.9] MODE=OBSTACLE_AVOID  light=GREEN    lane=STRAIGHT   obstacle=BLOCKED steer=  -0.0 speed= 0.75  17.4Hz
+[00:37.9] MODE=OBSTACLE_AVOID  light=GREEN    lane=CORNER     obstacle=BLOCKED steer=  -2.0 speed= 0.56  15.2Hz
+[00:38.8] MODE=OBSTACLE_AVOID  light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  +0.4 speed= 0.56  13.8Hz
+[00:39.6] MODE=OBSTACLE_AVOID  light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  +1.2 speed= 0.52  10.8Hz
+[00:40.7] MODE=OBSTACLE_AVOID  light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  -2.5 speed= 0.45  11.0Hz
+[00:41.5] MODE=OBSTACLE_AVOID  light=GREEN    lane=OFF_TRACK  obstacle=CLEAR  steer=  +0.0 speed= 0.60  12.2Hz
+[00:42.3] MODE=OBSTACLE_AVOID  light=GREEN    lane=OFF_TRACK  obstacle=CLEAR  steer=  +0.0 speed= 0.38  13.9Hz
+stopped
+[LOG] closed -> /home/physicar/physicar_ws/moving/logs/run_20260826_020454.log

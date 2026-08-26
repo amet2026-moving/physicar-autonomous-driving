@@ -1,0 +1,14 @@
+[LOG] saving to /home/physicar/physicar_ws/moving/logs/run_20260826_020440.log
+[WEB] debug view started on http://localhost:5000
+========================================================================
+PhysiCar autonomous driving
+DRIVE_ENABLED = True
+Ctrl+C to stop.
+========================================================================
+[TRAFFIC] fixed-ROI start gate active (ROI=(0.6, 0.4, 0.98, 0.95)); vehicle STOPPED; locking position...
+[TRAFFIC] state=LOCKING lock=NO(0/10) green=0/3 red_cleared=-     red_score=0.000 green_score=0.000
+[TRAFFIC] state=LOCKING lock=NO(0/10) green=0/3 red_cleared=-     red_score=0.000 green_score=0.000
+[TRAFFIC] state=LOCKING lock=NO(0/10) green=0/3 red_cleared=-     red_score=0.000 green_score=0.000
+[TRAFFIC] state=LOCKING lock=NO(0/10) green=0/3 red_cleared=-     red_score=0.000 green_score=0.000
+stopped
+[LOG] closed -> /home/physicar/physicar_ws/moving/logs/run_20260826_020440.log

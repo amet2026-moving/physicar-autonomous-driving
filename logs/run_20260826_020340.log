@@ -1,0 +1,27 @@
+[LOG] saving to /home/physicar/physicar_ws/moving/logs/run_20260826_020340.log
+[WEB] debug view started on http://localhost:5000
+========================================================================
+PhysiCar autonomous driving
+DRIVE_ENABLED = True
+Ctrl+C to stop.
+========================================================================
+[TRAFFIC] fixed-ROI start gate active (ROI=(0.6, 0.4, 0.98, 0.95)); vehicle STOPPED; locking position...
+[TRAFFIC] state=LOCKING lock=NO(1/10) green=0/3 red_cleared=-     red_score=0.000 green_score=0.662
+[TRAFFIC] DEPART -- reason=GREEN_CONFIRMED
+[lidar] subscribed to /scan
+[00:02.4] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  +0.1 speed= 0.75   8.6Hz
+[00:03.6] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  +0.1 speed= 0.75   9.9Hz
+[00:04.6] MODE=LANE_FOLLOW     light=GREEN    lane=CORNER     obstacle=CLEAR  steer= +16.7 speed= 0.39  10.6Hz
+[00:05.7] MODE=LANE_FOLLOW     light=GREEN    lane=CORNER     obstacle=CLEAR  steer= +20.0 speed= 0.34   9.7Hz
+[00:06.7] MODE=LANE_FOLLOW     light=GREEN    lane=CORNER     obstacle=CLEAR  steer= +17.9 speed= 0.34   8.5Hz
+[00:07.7] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  -0.4 speed= 0.75  10.4Hz
+[00:08.7] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  +0.2 speed= 0.75  11.4Hz
+[00:10.0] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  -0.0 speed= 0.75  10.8Hz
+[00:11.2] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  +0.0 speed= 0.75   8.8Hz
+[00:12.4] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  +0.0 speed= 0.75  10.9Hz
+[00:13.6] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  +0.0 speed= 0.75  11.2Hz
+[00:14.6] MODE=LANE_FOLLOW     light=GREEN    lane=STRAIGHT   obstacle=CLEAR  steer=  +0.0 speed= 0.75   9.1Hz
+[00:15.5] MODE=OBSTACLE_AVOID  light=GREEN    lane=STRAIGHT   obstacle=RIGHT  steer=  +0.0 speed= 0.65  15.8Hz
+[00:16.6] MODE=OBSTACLE_AVOID  light=GREEN    lane=STRAIGHT   obstacle=RIGHT  steer=  +2.1 speed= 0.45  13.8Hz
+stopped
+[LOG] closed -> /home/physicar/physicar_ws/moving/logs/run_20260826_020340.log
